@@ -24,6 +24,7 @@ class OpenAIClient(LLMProvider):
             content = response.choices[0].message.content
             usage = response.usage
             metrics = {
+                "provider": "openai",
                 "prompt_tokens": usage.prompt_tokens if usage else 0,
                 "completion_tokens": usage.completion_tokens if usage else 0,
                 "model": model
@@ -62,6 +63,7 @@ Schema: {json.dumps(schema)}"
             content = response.choices[0].message.content
             usage = response.usage
             metrics = {
+                "provider": "openai",
                 "prompt_tokens": usage.prompt_tokens if usage else 0,
                 "completion_tokens": usage.completion_tokens if usage else 0,
                 "model": model

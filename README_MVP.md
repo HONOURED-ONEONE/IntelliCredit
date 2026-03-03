@@ -28,6 +28,12 @@ Welcome to the IntelliCredit MVP. This system automates deterministic and LLM-as
 - **Backward Compatible**: The provided default configuration perfectly reproduces the legacy deterministic logic.
 - **Inline Policy Gates**: Any `CRITICAL` issues in upstream validation reports automatically trigger a `REFER` action inside the engine and append the block reason directly to the CAM narrative drivers.
 
+## Ops & Governance (P3)
+
+- **Cross-Stage Validation Aggregator**: A new `/jobs/{id}/validation/aggregate` endpoint serves a rolled-up summary of all per-stage schema and business logic validations.
+- **Token & Cost Telemetry**: Granular tracking for prompt/completion tokens and provider API calls. Cost limits can be calculated dynamically by mapping usage to configurable `billing` rates in `config/base.yaml` (default rate is 0.0 to prevent surprise estimates).
+- **Prometheus Metrics Export**: Easily monitor active pipelines. Enable `metrics.prometheus.enabled: true` in `config/base.yaml` to expose the `/metrics` endpoint with latency histograms, stage validation counts, token usage, and cost projections. (Requires `prometheus_client`). Note: All features are backward compatible and strictly opt-in.
+
 ## How to Run (Local Docker Compose)
 
 1. Copy `.env.example` to `.env`. Fill out any API keys if you plan to use live LLMs or live Search. You do not need any keys for the offline mock mode.

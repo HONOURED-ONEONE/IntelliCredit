@@ -54,6 +54,13 @@ async def run_job_async(job_id: str, payload: dict):
             with open(status_file, "w") as f:
                 json.dump(status, f, indent=2)
             job_logger.info(f"Status updated to: {stage} (outcome: {outcome})")
+            
+            if stage == "completed":
+                try:
+                    from governance.observability.prom import record_job_outcome
+                    record_job_outcome(outcome)
+                except Exception:
+                    pass
 
         if not current_status:
             update_status("started")
@@ -185,6 +192,13 @@ async def run_job_async(job_id: str, payload: dict):
             
         job_logger.info("Building evidence pack...")
         build_evidence_pack(job_dir, config)
+        
+        job_logger.info("Aggregating validation reports...")
+        try:
+            from governance.validation.aggregate import aggregate_reports
+            aggregate_reports(job_dir)
+        except Exception as e:
+            job_logger.error(f"Failed to aggregate reports: {e}")
         
         job_logger.info("Collecting metrics...")
         collect_metrics(job_dir)

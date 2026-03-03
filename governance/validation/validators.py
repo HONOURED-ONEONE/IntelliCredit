@@ -25,6 +25,13 @@ def _add_issue(report: dict, stage: str, severity: str, code: str, message: str,
         "message": message,
         "path": path
     })
+    
+    try:
+        from governance.observability.prom import inc_validation_issue
+        inc_validation_issue(stage, severity)
+    except ImportError:
+        pass
+
     if severity.lower() == "critical":
         report["summary"]["critical"] += 1
         report["schema_ok"] = False

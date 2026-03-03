@@ -3,9 +3,11 @@ from pathlib import Path
 import re
 from data_layer.contracts.utils import read_jsonl, sha256_of_file
 
-def redact_text(text: str, patterns: list[str]) -> str:
+def redact_text(text: str, patterns: list[str], redaction_stats: dict = None) -> str:
     if not text or not patterns:
         return text
+    
+    initial_redactions = text.count("[REDACTED]")
     for pattern in patterns:
         if pattern == "PAN":
             text = re.sub(r"[A-Z]{5}[0-9]{4}[A-Z]{1}", "[REDACTED]", text)
@@ -15,6 +17,9 @@ def redact_text(text: str, patterns: list[str]) -> str:
             text = re.sub(r"[A-Z]{4}0[A-Z0-9]{6}", "[REDACTED]", text)
         else:
             text = re.sub(re.escape(pattern), "[REDACTED]", text)
+            
+    if redaction_stats is not None:
+        redaction_stats["count"] += text.count("[REDACTED]") - initial_redactions
     return text
 
 def build_evidence_pack(job_dir: Path, cfg: dict):
@@ -36,6 +41,8 @@ def build_evidence_pack(job_dir: Path, cfg: dict):
     pii_patterns = cfg.get("governance", {}).get("redaction", {}).get("pii_patterns", []) if redact_enabled else []
     store_page_images = cfg.get("governance", {}).get("evidence", {}).get("store_page_images", False)
     
+    redaction_stats = {"count": 0}
+    
     # 1. Primary Insights evidence
     insights_path = job_dir / "primary" / "risk_arguments.jsonl"
     if insights_path.exists():
@@ -44,7 +51,7 @@ def build_evidence_pack(job_dir: Path, cfg: dict):
         for i, ins in enumerate(insights):
             quote = ins.get("quote", "")
             if redact_enabled:
-                quote = redact_text(quote, pii_patterns)
+                quote = redact_text(quote, pii_patterns, redaction_stats)
             notes.append(f"Argument {i+1}:\nQuote: {quote}\nObservation: {ins.get('observation')}\n")
         
         notes_file = primary_dir / "notes.txt"
@@ -81,7 +88,7 @@ def build_evidence_pack(job_dir: Path, cfg: dict):
             for cit in f.get("citations", []):
                 snippet = cit.get("snippet", "")
                 if redact_enabled:
-                    snippet = redact_text(snippet, pii_patterns)
+                    snippet = redact_text(snippet, pii_patterns, redaction_stats)
                 citations.append({
                     "url": cit.get("url"),
                     "title": cit.get("title", ""),
@@ -112,7 +119,7 @@ def build_evidence_pack(job_dir: Path, cfg: dict):
             snippet = f.get("evidence_snippet")
             if snippet:
                 if redact_enabled:
-                    snippet = redact_text(snippet, pii_patterns)
+                    snippet = redact_text(snippet, pii_patterns, redaction_stats)
                 doc_evidences.append({
                     "field": f.get("field"),
                     "page": f.get("page"),
@@ -167,3 +174,32 @@ def build_evidence_pack(job_dir: Path, cfg: dict):
     manifest_file = pack_dir / "evidence_manifest.json"
     with open(manifest_file, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)
+        
+    if redact_enabled and redaction_stats["count"] > 0:
+        try:
+            from governance.provenance.provenance import append_metrics
+            append_metrics(job_dir, "redaction", {"count": redaction_stats["count"]})
+        except Exception:
+            pass
+
+    # Root manifest
+    root_manifest = {}
+    core_files = [
+        "ingestor/facts.jsonl",
+        "research/research_findings.jsonl",
+        "primary/risk_arguments.jsonl",
+        "decision_engine/decision_output.json",
+        "metrics.json",
+        "validation_aggregate.json",
+        "provenance.json"
+    ]
+    for rel_path in core_files:
+        fpath = job_dir / rel_path
+        if fpath.exists():
+            root_manifest[rel_path] = {
+                "bytes": fpath.stat().st_size,
+                "sha256": sha256_of_file(fpath)
+            }
+            
+    with open(job_dir / "manifest.json", "w", encoding="utf-8") as f:
+        json.dump(root_manifest, f, indent=2)

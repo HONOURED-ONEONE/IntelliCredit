@@ -109,13 +109,24 @@ async def get_job_metrics(job_id: str):
     config = load_config()
     output_root = config.get("paths", {}).get("output_root", "outputs/jobs")
     metrics_file = project_root / output_root / job_id / "metrics.json"
-    
+
     if not metrics_file.exists():
         return {}
-        
+
     with open(metrics_file, "r") as f:
         return json.load(f)
 
+@app.get("/metrics")
+async def get_prometheus_metrics():
+    config = load_config()
+    if not config.get("metrics", {}).get("prometheus", {}).get("enabled", False):
+        raise HTTPException(status_code=404, detail="Prometheus metrics not enabled")
+    try:
+        from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+        from fastapi.responses import Response
+        return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    except ImportError:
+        raise HTTPException(status_code=503, detail="Prometheus not available")
 @app.get("/jobs/{job_id}/provenance")
 async def get_job_provenance(job_id: str):
     config = load_config()
@@ -139,6 +150,17 @@ async def get_job_validation(job_id: str, stage: str = Query(..., regex="^(inges
         
     with open(val_file, "r") as f:
         return json.load(f)
+
+@app.get("/jobs/{job_id}/validation/aggregate")
+def get_validation_aggregate(job_id: str):
+    agg_file = OUTPUT_ROOT / job_id / "validation_aggregate.json"
+    if not agg_file.exists():
+        raise HTTPException(status_code=404, detail="Aggregate validation not found")
+    try:
+        with open(agg_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/jobs/{job_id}/evidence")
 async def get_job_evidence(job_id: str):

@@ -5,6 +5,7 @@ from loguru import logger
 import pandas as pd
 from .normalizers import read_gst_csv, read_bank_csv
 from .pdf_utils import extract_text_pages
+from governance.provenance.provenance import append_metrics
 
 def run(job_dir: Path, cfg: dict, payload: dict) -> None:
     source_mode = payload.get("source_mode") or payload.get("provider_mode") or cfg.get("providers", {}).get("mode", "mock")
@@ -151,6 +152,7 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
                             schema=schema,
                             model=vision_model
                         )
+                        append_metrics(job_dir, f"ingestor_vision_{doc.get('id', 'doc')}", metrics)
                         for fact in ext_list:
                             if isinstance(fact, dict) and "facts" in fact:
                                 for f in fact["facts"]:

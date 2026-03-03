@@ -92,3 +92,25 @@ security:
   max_request_mb: 10
   allowed_origins: ["http://localhost:8501"]
   redact_keys_in_logs: true
+
+billing:
+  currency: "INR"
+  openai:
+    gpt-4o:
+      prompt_per_1k: 0.0
+      completion_per_1k: 0.0
+    gpt-4o-mini:
+      prompt_per_1k: 0.0
+      completion_per_1k: 0.0
+  anthropic:
+    claude-3-7-sonnet-2025-10-22:
+      prompt_per_1k: 0.0
+      completion_per_1k: 0.0
+  search:
+    perplexity_per_call: 0.0
+    tavily_per_call: 0.0
+    bing_per_call: 0.0
+
+metrics:
+  prometheus:
+    enabled: true
