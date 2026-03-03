@@ -16,6 +16,17 @@ class MockDatabricksConnector:
         
         return [{"path": str(f), "name": f.name} for f in pdf_dir.glob("*.pdf")]
 
+    def download_dbfs_file(self, remote_path: str, dest_path: Path) -> Path:
+        import shutil
+        pdf_dir = self.project_root / self.cfg.get("mock_paths", {}).get("pdf_dir", "mock_dbx/dbfs")
+        filename = remote_path.split("/")[-1]
+        src_path = pdf_dir / filename
+        if src_path.exists():
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(src_path, dest_path)
+            return dest_path
+        raise FileNotFoundError(f"Mock file not found: {src_path}")
+
     def read_uc_table(self, catalog: str, schema: str, table: str) -> pd.DataFrame:
         # map to mock_dbx/uc/*.csv
         if "gst" in table.lower():

@@ -66,13 +66,17 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
         dbfs_path = payload.get("dbfs_path") or cfg.get("integrations", {}).get("databricks", {}).get("files_root", "dbfs:/Shared/credit_docs")
         try:
             pdf_files_info = dbx.list_pdfs(dbfs_path)
-            # For this MVP, we assume local mock DBFS dir actually holds these files or we just use mock fallback
-            # because downloading from DBFS is complex. We'll use mock files locally matching the names.
-            pdf_dir = project_root / cfg.get("mock_paths", {}).get("pdf_dir", "mock_dbx/dbfs")
+            inputs_dir = job_dir / "inputs"
+            pdf_dir = inputs_dir / "pdfs"
+            pdf_dir.mkdir(parents=True, exist_ok=True)
             for info in pdf_files_info:
+                remote_path = info["path"]
                 local_path = pdf_dir / info["name"]
-                if local_path.exists():
+                try:
+                    dbx.download_dbfs_file(remote_path, local_path)
                     pdf_paths.append(local_path)
+                except Exception as e:
+                    logger.warning(f"Failed to download {remote_path}: {e}")
         except Exception as e:
             logger.warning(f"Failed to list PDFs from DBFS {dbfs_path}: {e}")
             with open(out_dir / "stage_note.txt", "a") as f: f.write("databricks_live_error=true\n")
