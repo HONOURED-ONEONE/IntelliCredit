@@ -1,0 +1,13 @@
+{
+  "schema_ok": true,
+  "issues": [],
+  "counts": {
+    "records": 1,
+    "fields_checked": 2
+  },
+  "summary": {
+    "ok": 0,
+    "warn": 0,
+    "critical": 0
+  }
+}

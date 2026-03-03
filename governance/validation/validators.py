@@ -131,6 +131,54 @@ def validate_ingestor(job_dir: Path) -> dict:
                 elif diff <= max_val * 0.05:
                     _add_issue(report, stage, "INFO", "PLAUSIBILITY", "Bank Inflow and GST Sales closely align (<=5%)", str(facts_path))
 
+    # --- WORKSTREAM A: Validate Signals ---
+    signals_path = job_dir / "ingestor" / "signals.json"
+    if signals_path.exists():
+        try:
+            with open(signals_path, "r") as f:
+                sig = json.load(f)
+                
+            # Spikes
+            spikes = sig.get("spikes", {})
+            for series, s_list in spikes.items():
+                for s in s_list:
+                    if not all(k in s for k in ["period", "value", "z", "method", "rel_change"]):
+                        _add_issue(report, stage, "CRITICAL", "INVALID_SPIKE_FORMAT", f"Missing fields in spike for {series}", str(signals_path))
+            
+            # Reversals
+            reversals = sig.get("reversals", [])
+            for r in reversals:
+                if not all(k in r for k in ["lead_series", "lead_period", "follow_series", "follow_period", "offset_ratio", "lag"]):
+                    _add_issue(report, stage, "CRITICAL", "INVALID_REVERSAL_FORMAT", "Missing fields in reversal entry", str(signals_path))
+                if not (1 <= r.get("lag", 0) <= 12): # sanity check lag
+                    _add_issue(report, stage, "WARN", "UNUSUAL_LAG", f"Reversal lag {r.get('lag')} is unusual", str(signals_path))
+            
+            # Risk Score
+            ctr = sig.get("circular_trading_risk", {})
+            score = ctr.get("score", 0)
+            if not (0 <= score <= 100):
+                _add_issue(report, stage, "CRITICAL", "SCORE_OUT_OF_RANGE", f"Circular trading risk score {score} out of range", str(signals_path))
+                
+            num_months = len(facts) / 3 # approximate
+            total_spikes = sum(len(v) for v in spikes.values())
+            if num_months > 6 and total_spikes > num_months * 0.3:
+                _add_issue(report, stage, "WARN", "NOISY_SIGNALS", "High volume of spikes detected (>30% of months); check thresholds", str(signals_path))
+                
+        except Exception as e:
+            _add_issue(report, stage, "CRITICAL", "SIGNAL_READ_ERROR", str(e), str(signals_path))
+
+    # Check for missing dates in CSVs
+    for csv_name in ["gst_returns.csv", "bank_transactions.csv"]:
+        csv_path = job_dir / "ingestor" / csv_name
+        if csv_path.exists():
+            try:
+                df = pd.read_csv(csv_path)
+                if "date" in df.columns:
+                    missing = pd.to_datetime(df["date"], errors="coerce").isna().sum()
+                    if missing > 0:
+                        _add_issue(report, stage, "WARN", "MISSING_DATES", f"{missing} missing or invalid dates in {csv_name}", str(csv_path))
+            except Exception: pass
+
     _write_report(job_dir, stage, report)
     return report
 

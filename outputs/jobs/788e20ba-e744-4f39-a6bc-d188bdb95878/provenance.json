@@ -1,0 +1,68 @@
+{
+  "run_id": "788e20ba-e744-4f39-a6bc-d188bdb95878",
+  "started_at": "2026-03-03T12:54:15.214603+00:00",
+  "status": "completed",
+  "environment": {
+    "python_version": "3.9.6 (default, Jan  9 2026, 11:03:41) \n[Clang 17.0.0 (clang-1700.6.4.2)]",
+    "git_commit": "2bea0b35b5391f3e4f6e55a7ab97296bd487bf5e"
+  },
+  "config_snapshot_hash": "dcb8941cc687a911e0d16165625845b6ae45a83ec71b24e2c80280708b755eca",
+  "payload": {
+    "source": "test",
+    "parameters": {},
+    "company_name": "TestCorp",
+    "promoter": null,
+    "notes": null,
+    "provider_mode": null,
+    "source_mode": null,
+    "dbfs_path": null,
+    "gst_table": null,
+    "bank_table": null,
+    "use_mock_uc": null,
+    "use_mock_pdfs": null,
+    "enable_live_llm": false,
+    "enable_live_search": false,
+    "enable_live_databricks": false,
+    "llm_provider": null,
+    "vision_model": null,
+    "reasoning_model": null,
+    "catalog": null,
+    "schema_": null
+  },
+  "stages": {
+    "ingestor": {
+      "started_at": "2026-03-03T12:54:15.259434+00:00",
+      "ended_at": "2026-03-03T12:54:15.566699+00:00",
+      "outputs": {
+        "facts.jsonl": "5bca0f5538fafe1538908aeb6caeebaffbff411661029566fa55e0cfd983f8e0"
+      }
+    }
+  },
+  "ended_at": "2026-03-03T12:54:15.671158+00:00",
+  "inputs_manifest": [
+    {
+      "field": "gst_returns",
+      "name": "gst_returns.csv",
+      "bytes": 59,
+      "sha256": "1e17e322a7a2226b861e2daf32f0e904cf8c7c15c1244042ab8bb9f92265f8c4"
+    },
+    {
+      "field": "bank_transactions",
+      "name": "bank_transactions.csv",
+      "bytes": 73,
+      "sha256": "bcd9d27fddc42a83ec180c63fa7dbfacef91e04b6d817af9b0ed9d8eea80a111"
+    },
+    {
+      "field": "pdfs",
+      "name": "test1.pdf",
+      "bytes": 14,
+      "sha256": "7e397c430b7cb40722fdae7d051c198c66500e69e04275a491a9181aeab71187"
+    },
+    {
+      "field": "pdfs",
+      "name": "test2.pdf",
+      "bytes": 14,
+      "sha256": "069c6f7cc3badc96eac021ef09d88ab1f13d91192c6f41a47892b14b78846930"
+    }
+  ]
+}

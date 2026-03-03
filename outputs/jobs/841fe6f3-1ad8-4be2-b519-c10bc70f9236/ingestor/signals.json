@@ -1,0 +1,15 @@
+{
+  "mismatch": true,
+  "mismatch_value": 370000.0,
+  "spikes": {
+    "gst_sales": [],
+    "bank_inflow": [],
+    "bank_outflow": [],
+    "bank_net": []
+  },
+  "reversals": [],
+  "circular_trading_risk": {
+    "score": 0,
+    "drivers": []
+  }
+}

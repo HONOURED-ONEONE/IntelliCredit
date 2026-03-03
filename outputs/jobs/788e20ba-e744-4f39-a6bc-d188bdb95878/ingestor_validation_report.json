@@ -1,0 +1,22 @@
+{
+  "schema_ok": true,
+  "issues": [
+    {
+      "id": "ingestor-1",
+      "stage": "ingestor",
+      "severity": "WARN",
+      "code": "NEGATIVE_VALUE",
+      "message": "Negative value for total_bank_outflow",
+      "path": "/Users/honoured_one/IntelliCredit/outputs/jobs/788e20ba-e744-4f39-a6bc-d188bdb95878/ingestor/facts.jsonl"
+    }
+  ],
+  "counts": {
+    "records": 3,
+    "fields_checked": 3
+  },
+  "summary": {
+    "ok": 0,
+    "warn": 1,
+    "critical": 0
+  }
+}

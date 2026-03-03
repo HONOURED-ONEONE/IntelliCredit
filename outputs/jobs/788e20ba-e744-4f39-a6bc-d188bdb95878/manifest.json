@@ -1,0 +1,14 @@
+{
+  "ingestor/facts.jsonl": {
+    "bytes": 586,
+    "sha256": "5bca0f5538fafe1538908aeb6caeebaffbff411661029566fa55e0cfd983f8e0"
+  },
+  "decision_engine/decision_output.json": {
+    "bytes": 213,
+    "sha256": "78698f23d758921ab7d8cc691cbe97ecfe64d0a5d301ff1bbc7734aab702e701"
+  },
+  "provenance.json": {
+    "bytes": 1211,
+    "sha256": "4d00137f84136d86d9e126ea8503e0d4478118722ba08ba06b3ef422b0457800"
+  }
+}

@@ -1,0 +1,30 @@
+[
+  {
+    "path": "docs/extracted_snippets.jsonl",
+    "bytes": 337,
+    "sha256": "1b19c432da78b5a40a9fe9717fc2171e87d5f67371eadaca3081eb8327ee670c",
+    "source_artifact": "facts.jsonl",
+    "contract": "facts",
+    "anchors": [
+      {
+        "file": "gst_returns.csv",
+        "page": 1
+      },
+      {
+        "file": "bank_transactions.csv",
+        "page": 1
+      },
+      {
+        "file": "bank_transactions.csv",
+        "page": 1
+      }
+    ]
+  },
+  {
+    "path": "docs/spike_reversal_summary.json",
+    "bytes": 113,
+    "sha256": "78e1e4d7aaaba26cef9f0966bfbb270e50f9e2ad620923ed3b0d41f74d7c6dfc",
+    "source_artifact": "signals.json",
+    "contract": "facts"
+  }
+]

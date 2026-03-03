@@ -1,8 +1,11 @@
 import uuid
 import json
 import os
+import shutil
+import hashlib
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Request
+from typing import List, Optional
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Request, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
@@ -12,7 +15,10 @@ project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(project_root))
 
 from orchestration.job_runner import run_job_async, load_config
-from experience.api.schemas import JobPayload, JobResponse, JobStatusResponse, JobResultsResponse, FileInfo, FileNode
+from experience.api.schemas import (
+    JobPayload, JobResponse, JobStatusResponse, JobResultsResponse, 
+    FileInfo, FileNode, UploadEntry, UploadManifest
+)
 
 app = FastAPI(title="IntelliCredit API MVP")
 
@@ -89,6 +95,98 @@ async def create_job(payload: JobPayload, background_tasks: BackgroundTasks):
     job_id = str(uuid.uuid4())
     background_tasks.add_task(run_job_async, job_id, payload.model_dump())
     return JobResponse(job_id=job_id)
+
+@app.post("/jobs/{job_id}/uploads", response_model=UploadManifest)
+async def upload_job_inputs(
+    job_id: str,
+    gst_returns: Optional[UploadFile] = File(None),
+    bank_transactions: Optional[UploadFile] = File(None),
+    pdfs: List[UploadFile] = File(default=[])
+):
+    config = load_config()
+    output_root = config.get("paths", {}).get("output_root", "outputs/jobs")
+    job_dir = project_root / output_root / job_id
+    
+    if not job_dir.exists():
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    inputs_dir = job_dir / "inputs"
+    inputs_dir.mkdir(parents=True, exist_ok=True)
+    
+    saved_entries = []
+    
+    def save_and_hash(upload_file, dest_path, field):
+        if not upload_file.filename.lower().endswith(('.csv', '.pdf')):
+            raise HTTPException(status_code=415, detail=f"Unsupported file type for {upload_file.filename}")
+            
+        sha256 = hashlib.sha256()
+        with open(dest_path, "wb") as buffer:
+            # Read in chunks to compute hash and save
+            while True:
+                chunk = upload_file.file.read(1024 * 1024) # 1MB chunks
+                if not chunk: break
+                sha256.update(chunk)
+                buffer.write(chunk)
+        
+        saved_entries.append(UploadEntry(
+            field=field,
+            name=dest_path.name,
+            bytes=dest_path.stat().st_size,
+            sha256=sha256.hexdigest()
+        ))
+
+    if gst_returns:
+        save_and_hash(gst_returns, inputs_dir / "gst_returns.csv", "gst_returns")
+    if bank_transactions:
+        save_and_hash(bank_transactions, inputs_dir / "bank_transactions.csv", "bank_transactions")
+    if pdfs:
+        pdf_dir = inputs_dir / "pdfs"
+        pdf_dir.mkdir(exist_ok=True)
+        for pdf in pdfs:
+            # Sanitize name
+            safe_name = "".join([c if c.isalnum() or c in "._-" else "_" for c in pdf.filename])
+            save_and_hash(pdf, pdf_dir / safe_name, "pdfs")
+
+    # Update provenance if it exists
+    prov_file = job_dir / "provenance.json"
+    if prov_file.exists():
+        with open(prov_file, "r") as f:
+            prov = json.load(f)
+        prov["inputs_manifest"] = [e.model_dump() for e in saved_entries]
+        with open(prov_file, "w") as f:
+            json.dump(prov, f, indent=2)
+            
+    return UploadManifest(job_id=job_id, saved=saved_entries)
+
+@app.get("/jobs/{job_id}/inputs", response_model=List[UploadEntry])
+async def list_job_inputs(job_id: str):
+    config = load_config()
+    output_root = config.get("paths", {}).get("output_root", "outputs/jobs")
+    inputs_dir = project_root / output_root / job_id / "inputs"
+    
+    if not inputs_dir.exists():
+        return []
+        
+    entries = []
+    for f in inputs_dir.rglob("*"):
+        if f.is_file():
+            field = "pdfs" if "pdfs" in str(f) else ("gst_returns" if "gst_returns" in f.name else "bank_transactions")
+            
+            # Compute hash
+            sha256 = hashlib.sha256()
+            with open(f, "rb") as bf:
+                while True:
+                    chunk = bf.read(1024 * 1024)
+                    if not chunk: break
+                    sha256.update(chunk)
+                    
+            entries.append(UploadEntry(
+                field=field,
+                name=f.name,
+                bytes=f.stat().st_size,
+                sha256=sha256.hexdigest()
+            ))
+    return entries
 
 @app.get("/jobs/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(job_id: str):

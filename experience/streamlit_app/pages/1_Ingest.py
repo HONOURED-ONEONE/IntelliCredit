@@ -19,7 +19,7 @@ with st.form("job_form"):
     
     gst_file = None
     bank_file = None
-    pdf_file = None
+    pdf_files = []
     dbfs_path = ""
     catalog = ""
     schema = ""
@@ -30,7 +30,7 @@ with st.form("job_form"):
         st.subheader("Upload Inputs")
         gst_file = st.file_uploader("GST Returns CSV", type=["csv"])
         bank_file = st.file_uploader("Bank Transactions CSV", type=["csv"])
-        pdf_file = st.file_uploader("Financial Docs PDF", type=["pdf"])
+        pdf_files = st.file_uploader("Financial Docs PDFs", type=["pdf"], accept_multiple_files=True)
     elif provider_mode == "databricks_files":
         st.subheader("Databricks Files")
         dbfs_path = st.text_input("DBFS Path", value="dbfs:/Shared/credit_docs")
@@ -68,28 +68,19 @@ if start_button:
         st.success(f"Job started! ID: {job_id}")
         
         if provider_mode == "local_uploads":
-            import yaml
-            project_root = Path(__file__).resolve().parent.parent.parent.parent
-            config_path = project_root / "config" / "base.yaml"
-            output_root = "outputs/jobs"
-            if config_path.exists():
-                with open(config_path, "r") as cf:
-                    conf = yaml.safe_load(cf)
-                    output_root = conf.get("paths", {}).get("output_root", "outputs/jobs")
-            job_dir = project_root / output_root / job_id
-            inputs_dir = job_dir / "inputs"
-            inputs_dir.mkdir(parents=True, exist_ok=True)
+            files_to_send = []
             if gst_file:
-                with open(inputs_dir / "gst_returns.csv", "wb") as f:
-                    f.write(gst_file.getbuffer())
+                files_to_send.append(("gst_returns", (gst_file.name, gst_file.getvalue(), "text/csv")))
             if bank_file:
-                with open(inputs_dir / "bank_transactions.csv", "wb") as f:
-                    f.write(bank_file.getbuffer())
-            if pdf_file:
-                pdf_dir = inputs_dir / "pdfs"
-                pdf_dir.mkdir(exist_ok=True)
-                with open(pdf_dir / "uploaded.pdf", "wb") as f:
-                    f.write(pdf_file.getbuffer())
+                files_to_send.append(("bank_transactions", (bank_file.name, bank_file.getvalue(), "text/csv")))
+            if pdf_files:
+                for pf in pdf_files:
+                    files_to_send.append(("pdfs", (pf.name, pf.getvalue(), "application/pdf")))
+            
+            if files_to_send:
+                u_res = requests.post(f"{api_url}/jobs/{job_id}/uploads", files=files_to_send)
+                u_res.raise_for_status()
+                st.info(f"Uploaded {len(u_res.json()['saved'])} files.")
                     
     except Exception as e:
         st.error(f"Failed to start job: {e}")

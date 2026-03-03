@@ -173,6 +173,39 @@ def build_evidence_pack(job_dir: Path, cfg: dict):
             except ImportError:
                 pass
 
+    # 4. Spike/Reversal summary
+    signals_path = job_dir / "ingestor" / "signals.json"
+    if signals_path.exists():
+        try:
+            with open(signals_path, "r") as f:
+                sig = json.load(f)
+            
+            summary = {
+                "circular_trading_risk": sig.get("circular_trading_risk", {}),
+                "top_spikes": [],
+                "top_reversals": sig.get("reversals", [])[:5]
+            }
+            # Add top spikes across all series
+            all_spikes = []
+            for series, s_list in sig.get("spikes", {}).items():
+                for s in s_list:
+                    all_spikes.append({**s, "series": series})
+            summary["top_spikes"] = sorted(all_spikes, key=lambda x: x.get("z", 0), reverse=True)[:5]
+            
+            summary_file = docs_dir / "spike_reversal_summary.json"
+            with open(summary_file, "w", encoding="utf-8") as f:
+                json.dump(summary, f, indent=2)
+                
+            manifest.append({
+                "path": "docs/spike_reversal_summary.json",
+                "bytes": summary_file.stat().st_size,
+                "sha256": sha256_of_file(summary_file),
+                "source_artifact": "signals.json",
+                "contract": "facts"
+            })
+        except Exception:
+            pass
+
     manifest_file = pack_dir / "evidence_manifest.json"
     with open(manifest_file, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)

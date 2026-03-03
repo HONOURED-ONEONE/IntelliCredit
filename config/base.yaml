@@ -63,12 +63,42 @@ gates:
     - "kyc_missing"
     - "audit_report_missing"
   missing_data_policy: "REFER"
+
+signals:
+  spike:
+    method: "mad"          # "mad" | "iqr"
+    z_threshold: 3.0
+    rel_threshold: 0.6     # 60% above baseline
+    min_points: 6
+    rolling_window: 6      # months for trailing median; fallback to global
+  reversal:
+    window_k: 2
+    offset_ratio_min: 0.7
+  weights:
+    spike: 10
+    reversal: 25
+    cap: 100
+
 decision:
   base_score: 60
   adjustments:
     gst_bank_mismatch: -10
     adverse_per_item: -15
     primary_delta_cap: 10
+  policy_matrix:
+    - when:
+        entity_confidence_lt: 0.6
+        adverse_count_gte: 1
+      action: "REFER"
+      driver: "Low entity confidence with adverse media"
+    - when:
+        circular_trading_risk_gte: 60
+      action: "REFER"
+      driver: "Spike-reversal pattern suggests circular trading"
+    - when:
+        legal_hits_gt: 0
+      action: "REFER"
+      driver: "Open legal proceedings detected"
   pricing:
     min_rate: 9.0
     max_rate: 16.0

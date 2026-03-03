@@ -1,0 +1,15 @@
+{
+  "stage_durations": {
+    "ingestor": 0.307265
+  },
+  "artifact_sizes": {
+    "facts.jsonl": 586,
+    "decision_output.json": 213
+  },
+  "tokens": {
+    "prompt": 0,
+    "completion": 0,
+    "total": 0
+  },
+  "errors": 0
+}

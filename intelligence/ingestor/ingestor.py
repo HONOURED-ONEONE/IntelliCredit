@@ -204,10 +204,162 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
     threshold = 0.2 * total_bank_inflow if total_bank_inflow else 0
     mismatch = mismatch_val > threshold
     
+    # --- WORKSTREAM A: Spike & Reversal Heuristics ---
+    s_cfg = cfg.get("signals", {})
+    spike_cfg = s_cfg.get("spike", {})
+    rev_cfg = s_cfg.get("reversal", {})
+    weights = s_cfg.get("weights", {})
+    
+    spikes = {"gst_sales": [], "bank_inflow": [], "bank_outflow": [], "bank_net": []}
+    reversals = []
+    risk_score = 0
+    drivers = []
+
+    def to_monthly(df, val_col):
+        if df.empty or "date" not in df.columns or val_col not in df.columns:
+            return pd.Series(dtype=float)
+        temp = df.copy()
+        temp["date"] = pd.to_datetime(temp["date"], errors="coerce")
+        temp = temp.dropna(subset=["date"])
+        if temp.empty: return pd.Series(dtype=float)
+        # Resample to month-end and format as YYYY-MM
+        s = temp.set_index("date")[val_col].resample("ME").sum()
+        s.index = s.index.strftime("%Y-%m")
+        return s
+
+    gst_monthly = to_monthly(gst_df, "sales")
+    bank_in = bank_df[bank_df["amount"] > 0] if not bank_df.empty else pd.DataFrame()
+    bank_out = bank_df[bank_df["amount"] < 0].copy() if not bank_df.empty else pd.DataFrame()
+    if not bank_out.empty: bank_out["amount"] = bank_out["amount"].abs()
+    
+    bank_in_monthly = to_monthly(bank_in, "amount")
+    bank_out_monthly = to_monthly(bank_out, "amount")
+    
+    # bank_net = inflow - outflow
+    all_months = sorted(list(set(bank_in_monthly.index) | set(bank_out_monthly.index)))
+    bank_net_monthly = pd.Series(0.0, index=all_months)
+    for m in all_months:
+        bank_net_monthly[m] = bank_in_monthly.get(m, 0.0) - bank_out_monthly.get(m, 0.0)
+
+    series_map = {
+        "gst_sales": gst_monthly,
+        "bank_inflow": bank_in_monthly,
+        "bank_outflow": bank_out_monthly,
+        "bank_net": bank_net_monthly
+    }
+
+    def detect_spikes_internal(series, cfg_obj):
+        if len(series) < cfg_obj.get("min_points", 6):
+            return []
+        method = cfg_obj.get("method", "mad")
+        z_thresh = cfg_obj.get("z_threshold", 3.0)
+        rel_thresh = cfg_obj.get("rel_threshold", 0.6)
+        win = cfg_obj.get("rolling_window", 6)
+        
+        found = []
+        global_median = series.median()
+        global_mad = (series - global_median).abs().median()
+        global_iqr = series.quantile(0.75) - series.quantile(0.25)
+        
+        for i in range(len(series)):
+            val = float(series.iloc[i])
+            # trailing median baseline
+            baseline = series.iloc[max(0, i-win):i].median() if i > 0 else global_median
+            rel_change = (val - baseline) / baseline if baseline > 0 else (val if val > 0 else 0)
+            
+            z = 0
+            if method == "mad":
+                if global_mad > 0:
+                    z = 0.6745 * (val - global_median) / global_mad
+                elif global_iqr > 0:
+                    z = (val - global_median) / global_iqr
+                else:
+                    z = 0
+            else:
+                z = (val - global_median) / global_iqr if global_iqr > 0 else 0
+                
+            if rel_change >= rel_thresh and z >= z_thresh:
+                found.append({
+                    "period": str(series.index[i]),
+                    "value": val,
+                    "z": float(round(z, 2)),
+                    "method": method,
+                    "rel_change": float(round(rel_change, 2))
+                })
+        return found
+
+    # 1. Spikes
+    for name, s in series_map.items():
+        spikes[name] = detect_spikes_internal(s, spike_cfg)
+    
+    # 2. Reversals
+    window_k = rev_cfg.get("window_k", 2)
+    offset_min = rev_cfg.get("offset_ratio_min", 0.7)
+    
+    for lead_name, lead_spikes in spikes.items():
+        for ls in lead_spikes:
+            t_str = ls["period"]
+            if t_str not in series_map[lead_name].index: continue
+            t_idx = list(series_map[lead_name].index).index(t_str)
+            lead_val = ls["value"]
+            
+            for follow_name, f_series in series_map.items():
+                if lead_name == follow_name: continue
+                for lag in range(1, window_k + 1):
+                    if t_idx + lag >= len(f_series): break
+                    f_period = f_series.index[t_idx + lag]
+                    f_val = float(f_series.iloc[t_idx + lag])
+                    f_baseline = f_series.iloc[max(0, t_idx-5):t_idx+1].median()
+                    f_move = f_val - f_baseline
+                    
+                    ratio = abs(f_move) / abs(lead_val) if lead_val != 0 else 0
+                    ratio = min(ratio, 1.5)
+                    
+                    is_offset = False
+                    if lead_name in ["gst_sales", "bank_inflow"]:
+                        if (follow_name == "bank_outflow" and f_move > 0) or \
+                           (follow_name == "bank_net" and f_move < 0):
+                            is_offset = True
+                    elif lead_name == "bank_outflow":
+                        if (follow_name == "bank_inflow" and f_move < 0) or \
+                           (follow_name == "gst_sales" and f_move < 0):
+                            is_offset = True
+                    elif lead_name == "bank_net":
+                        if (lead_val > 0 and f_move < 0) or (lead_val < 0 and f_move > 0):
+                            is_offset = True
+                            
+                    if is_offset and ratio >= offset_min:
+                        reversals.append({
+                            "lead_series": lead_name, "lead_period": t_str,
+                            "follow_series": follow_name, "follow_period": f_period,
+                            "lead_value": lead_val, "follow_value": f_val,
+                            "offset_ratio": round(ratio, 2), "lag": lag,
+                            "note": f"{lead_name} spike followed by {follow_name} {'offset'}"
+                        })
+                        break
+
+    # 3. Risk Score
+    unique_spike_months = set()
+    for slist in spikes.values():
+        for sp in slist: unique_spike_months.add(sp["period"])
+    
+    s_count = len(unique_spike_months)
+    r_count = len(reversals)
+    risk_score = min(weights.get("cap", 100), weights.get("spike", 10)*s_count + weights.get("reversal", 25)*r_count)
+    
+    if s_count > 0: drivers.append(f"Detected {s_count} unique months with spikes across series")
+    if r_count > 0: drivers.append(f"Detected {r_count} reversal events (offset follow-ups)")
+    if risk_score >= 50: drivers.append("High circular trading risk pattern detected")
+
     signals = {
         "mismatch": bool(mismatch),
         "mismatch_value": mismatch_val,
-        "spike_reversal": False
+        "spikes": spikes,
+        "reversals": reversals,
+        "circular_trading_risk": {
+            "score": int(risk_score),
+            "drivers": drivers
+        }
     }
     with open(out_dir / "signals.json", "w", encoding="utf-8") as f:
         json.dump(signals, f, indent=2)

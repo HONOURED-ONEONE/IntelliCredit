@@ -53,3 +53,13 @@ class JobResultsResponse(BaseModel):
     job_id: str
     files: Optional[List[FileInfo]] = None
     tree: Optional[List[FileNode]] = None
+
+class UploadEntry(BaseModel):
+    field: Literal["gst_returns", "bank_transactions", "pdfs"]
+    name: str
+    bytes: int
+    sha256: str
+
+class UploadManifest(BaseModel):
+    job_id: str
+    saved: List[UploadEntry]

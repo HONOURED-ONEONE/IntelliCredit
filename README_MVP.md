@@ -12,12 +12,14 @@ Welcome to the IntelliCredit MVP. This system automates deterministic and LLM-as
 
 ## Search & Citations
 
+- **Improved Disambiguation**: Research now employs Jaccard token similarity for fuzzy matching canonical names and aliases. Entity profiles are generated in `research/entities/profile.json` with an `entity_confidence` score (0.6-1.0 range).
 - **Perplexity Integration**: When using the Perplexity provider (via `PPLX_API_KEY`), the results are now automatically parsed into structured citations (up to 5 per query) and include heuristics for source quality rating (+20 for `.gov` or `reuters`). Citations are deduplicated based on canonical URLs.
-- **IndianKanoon Stub**: Provides a stub for synthetic legal citations. Enable via `search.legal_sources.indiankanoon.enabled: true`. Adds up to 2 legal citation links per entity.
+- **IndianKanoon Stub**: Provides a stub for synthetic legal citations. Enable via `search.legal_sources.indiankanoon.enabled: true`. Adds up to 2 legal citation links per entity and tracks `legal_hits` in the entity profile.
 
 ## Governance & Evidence
 
 - **Evidence Page Images**: Set `governance.evidence.store_page_images: true` in `config/base.yaml` to export low-res JPEG snapshots of processed PDF pages into `evidence_pack/docs/pages/`. Hashes for these images are appended to `evidence_manifest.json`.
+- **Analytical Heuristics Summary**: A new `spike_reversal_summary.json` is generated in the evidence pack, capturing robust outlier detection results and circular trading risk scores.
 
 ## Primary Guardrails
 
@@ -27,7 +29,9 @@ Welcome to the IntelliCredit MVP. This system automates deterministic and LLM-as
 
 ## Decision Policy & Pricing
 
+- **Deterministic Policy Matrix**: Decisions can now be referred based on risk indicators like low entity confidence, high circular trading risk, or detected legal hits via a configurable `policy_matrix` in `base.yaml`.
 - **YAML-Driven Pricing**: The Decision Engine derives its scoring model, threshold values, and pricing curves directly from `config/base.yaml` via the `decision:` block, rather than hardcoded logic.
+- **Circular Trading Risk**: Analytical heuristics now detect "spikes" and "reversals" across GST and Bank series. A `circular_trading_risk` score is computed and surfaced in `signals.json`, influencing the policy matrix.
 - **Backward Compatible**: The provided default configuration perfectly reproduces the legacy deterministic logic.
 - **Inline Policy Gates**: Any `CRITICAL` issues in upstream validation reports automatically trigger a `REFER` action inside the engine and append the block reason directly to the CAM narrative drivers.
 ### OCR & Cleanup (Optional)
@@ -44,11 +48,11 @@ features:
 ```
 If disabled or dependencies are missing, the pipeline gracefully falls back to basic `pdfplumber` extraction with zero changes.
 
-## Ops & Governance (P3)
+## API & Centralized Uploads
 
+- **POST /jobs/{id}/uploads**: Centralized endpoint for uploading GST, Bank CSVs, and multiple PDFs. Streamlit no longer writes directly to the job directory.
+- **GET /jobs/{id}/inputs**: Manifest of all uploaded input files with SHA256 checksums for provenance.
 - **Cross-Stage Validation Aggregator**: A new `/jobs/{id}/validation/aggregate` endpoint serves a rolled-up summary of all per-stage schema and business logic validations.
-- **Token & Cost Telemetry**: Granular tracking for prompt/completion tokens and provider API calls. Cost limits can be calculated dynamically by mapping usage to configurable `billing` rates in `config/base.yaml` (default rate is 0.0 to prevent surprise estimates).
-- **Prometheus Metrics Export**: Easily monitor active pipelines. Enable `metrics.prometheus.enabled: true` in `config/base.yaml` to expose the `/metrics` endpoint with latency histograms, stage validation counts, token usage, and cost projections. (Requires `prometheus_client`). Note: All features are backward compatible and strictly opt-in.
 
 ## How to Run (Local Docker Compose)
 

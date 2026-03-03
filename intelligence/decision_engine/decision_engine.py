@@ -80,6 +80,42 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
     rate = max(min_rate, min(max_rate, max_rate - (score - 50) * slope))
     decision = "Approved" if score >= 40 else "Rejected"
 
+    # --- WORKSTREAM C: Policy Matrix (Deterministic) ---
+    profile_file = job_dir / "research" / "entities" / "profile.json"
+    entity_confidence = 1.0
+    legal_hits = 0
+    if profile_file.exists():
+        try:
+            with open(profile_file, "r") as f:
+                prof = json.load(f)
+                c_conf = prof.get("company", {}).get("entity_confidence", 1.0)
+                p_conf = prof.get("promoter", {}).get("entity_confidence", 1.0)
+                entity_confidence = min(c_conf, p_conf)
+                legal_hits = prof.get("company", {}).get("legal_hits", 0) + prof.get("promoter", {}).get("legal_hits", 0)
+        except Exception: pass
+
+    ctr_score = 0
+    if signals_file.exists():
+        try:
+            with open(signals_file, "r") as f:
+                sig = json.load(f)
+                ctr_score = sig.get("circular_trading_risk", {}).get("score", 0)
+        except Exception: pass
+
+    policy_matrix = dec_cfg.get("policy_matrix", [])
+    for rule in policy_matrix:
+        cond = rule.get("when", {})
+        met = True
+        if "entity_confidence_lt" in cond and not (entity_confidence < cond["entity_confidence_lt"]): met = False
+        if "adverse_count_gte" in cond and not (adverse_count >= cond["adverse_count_gte"]): met = False
+        if "circular_trading_risk_gte" in cond and not (ctr_score >= cond["circular_trading_risk_gte"]): met = False
+        if "legal_hits_gt" in cond and not (legal_hits > cond["legal_hits_gt"]): met = False
+        
+        if met:
+            if rule.get("action") == "REFER":
+                decision = "REFER"
+            drivers.append(f"Policy: {rule.get('driver')}")
+
     from governance.guardrails.policies import apply_gates
     gate_res = apply_gates(job_dir, cfg)
     if gate_res.get("action") != "ALLOW":
