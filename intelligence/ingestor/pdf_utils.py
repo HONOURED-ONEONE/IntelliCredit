@@ -7,9 +7,8 @@ def extract_text_pages(pdf_path: Path) -> list:
         import pdfplumber
         with pdfplumber.open(pdf_path) as pdf:
             for i, page in enumerate(pdf.pages):
-                text = page.extract_text()
-                if text:
-                    pages.append({"page": i + 1, "text": text[:500]})
+                text = page.extract_text() or ""
+                pages.append({"page": i + 1, "text": text[:500]})
     except ImportError:
         logger.warning("pdfplumber not available. Skipping PDF text extraction.")
     except Exception as e:
