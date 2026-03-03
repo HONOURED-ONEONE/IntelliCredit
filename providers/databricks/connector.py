@@ -36,9 +36,11 @@ class DatabricksConnector:
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def download_dbfs_file(self, remote_path: str, dest_path: Path) -> Path:
         try:
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
             with self.client.dbfs.download(remote_path) as reader:
                 with open(dest_path, "wb") as f:
-                    f.write(reader.read())
+                    while chunk := reader.read(8192):
+                        f.write(chunk)
             return dest_path
         except Exception as e:
             if self.cfg.get("security", {}).get("redact_keys_in_logs", True):

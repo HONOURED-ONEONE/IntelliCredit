@@ -47,14 +47,18 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
         gst_table = payload.get("gst_table") or cfg.get("integrations", {}).get("databricks", {}).get("gst_table", "gst_returns")
         bank_table = payload.get("bank_table") or cfg.get("integrations", {}).get("databricks", {}).get("bank_table", "bank_transactions")
         
+        from providers.databricks.schema_map import to_canonical_gst, to_canonical_bank
+        
         try:
-            gst_df = dbx.read_uc_table(catalog, schema, gst_table)
+            raw_gst = dbx.read_uc_table(catalog, schema, gst_table)
+            gst_df = to_canonical_gst(raw_gst)
         except Exception as e:
             logger.warning(f"Failed to read GST table {gst_table}: {e}")
             with open(out_dir / "stage_note.txt", "a") as f: f.write("databricks_live_error=true\n")
             
         try:
-            bank_df = dbx.read_uc_table(catalog, schema, bank_table)
+            raw_bank = dbx.read_uc_table(catalog, schema, bank_table)
+            bank_df = to_canonical_bank(raw_bank)
         except Exception as e:
             logger.warning(f"Failed to read Bank table {bank_table}: {e}")
             with open(out_dir / "stage_note.txt", "a") as f: f.write("databricks_live_error=true\n")
@@ -96,15 +100,31 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
     gst_df.to_csv(out_dir / "gst_returns.csv", index=False)
     bank_df.to_csv(out_dir / "bank_transactions.csv", index=False)
 
+    ocr_enabled = cfg.get("features", {}).get("ocr", {}).get("enabled", False)
+    cleanup_enabled = cfg.get("features", {}).get("cleanup", {}).get("enabled", False)
+
     documents = []
     facts = [
-        {"field": "total_gst_sales", "value": total_gst_sales},
-        {"field": "total_bank_inflow", "value": total_bank_inflow},
-        {"field": "total_bank_outflow", "value": total_bank_outflow}
+        {"field": "total_gst_sales", "value": total_gst_sales, "page": 1, "file": "gst_returns.csv", "evidence_snippet": "Computed from GST DB/CSV"},
+        {"field": "total_bank_inflow", "value": total_bank_inflow, "page": 1, "file": "bank_transactions.csv", "evidence_snippet": "Computed from Bank DB/CSV"},
+        {"field": "total_bank_outflow", "value": total_bank_outflow, "page": 1, "file": "bank_transactions.csv", "evidence_snippet": "Computed from Bank DB/CSV"}
     ]
 
     for pdf_file in pdf_paths:
         pages_text = extract_text_pages(pdf_file)
+        
+        if ocr_enabled:
+            from providers.ocr.tesseract import available as ocr_available, image_from_pdf_page, ocr_image
+            from providers.ocr.cleanup import cleanup_image
+            if ocr_available():
+                for page_data in pages_text:
+                    if len(page_data.get("text", "").strip()) < 50:
+                        img = image_from_pdf_page(str(pdf_file), page_data["page"] - 1)
+                        if img:
+                            img = cleanup_image(img, enabled=cleanup_enabled)
+                            ocr_txt = ocr_image(img)
+                            if ocr_txt:
+                                page_data["text"] = page_data.get("text", "") + "\n" + ocr_txt
         
         if enable_live_llm and os.getenv("OPENAI_API_KEY"):
             try:
@@ -157,9 +177,15 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
                             if isinstance(fact, dict) and "facts" in fact:
                                 for f in fact["facts"]:
                                     f["page"] = 1
+                                    f["file"] = pdf_file.name
+                                    if "evidence_snippet" not in f:
+                                        f["evidence_snippet"] = pages_text[0]["text"][:300] if pages_text else "Extracted via Vision API"
                                     facts.append(f)
                             elif isinstance(fact, dict) and "field" in fact:
                                 fact["page"] = 1
+                                fact["file"] = pdf_file.name
+                                if "evidence_snippet" not in fact:
+                                    fact["evidence_snippet"] = pages_text[0]["text"][:300] if pages_text else "Extracted via Vision API"
                                 facts.append(fact)
             except Exception as e:
                 logger.warning(f"Vision extraction failed: {e}")
