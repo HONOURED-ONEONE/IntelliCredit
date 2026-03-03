@@ -38,27 +38,50 @@ class PerplexityProvider:
                 content = data["choices"][0]["message"]["content"]
                 citations = data.get("citations", [])
                 
-                results = []
-                for i, url in enumerate(citations):
-                    results.append({
-                        "title": f"Source {i+1} for: {query}",
-                        "url": url,
-                        "snippet": content[:300] + "...",
-                        "date": datetime.now(timezone.utc).isoformat(),
-                        "source_quality": 0 # will be calculated in agent
-                    })
+                import re
+                md_links = re.findall(r'\[([^\]]+)\]\((https?://[^\)]+)\)', content)
+                plain_urls = re.findall(r'(?<!\()(https?://[^\s\)]+)', content)
                 
-                if not results:
-                    import re
-                    urls = re.findall(r'(https?://[^\s\)]+)', content)
-                    urls = list(dict.fromkeys(urls))
-                    for i, url in enumerate(urls[:5]):
+                seen_urls = set()
+                results = []
+                
+                def get_quality(u):
+                    u_lower = u.lower()
+                    if '.gov.in' in u_lower or 'rbi.org.in' in u_lower or 'reuters.com' in u_lower:
+                        return 80
+                    return 60
+                    
+                for title, url in md_links:
+                    if url not in seen_urls and len(results) < 5:
+                        seen_urls.add(url)
                         results.append({
-                            "title": f"Extracted Source {i+1}",
+                            "title": title,
                             "url": url,
                             "snippet": content[:300] + "...",
                             "date": datetime.now(timezone.utc).isoformat(),
-                            "source_quality": 0
+                            "source_quality": get_quality(url)
+                        })
+                        
+                for url in plain_urls:
+                    if url not in seen_urls and len(results) < 5:
+                        seen_urls.add(url)
+                        results.append({
+                            "title": f"Extracted Source for: {query}",
+                            "url": url,
+                            "snippet": content[:300] + "...",
+                            "date": datetime.now(timezone.utc).isoformat(),
+                            "source_quality": get_quality(url)
+                        })
+                        
+                for url in citations:
+                    if url not in seen_urls and len(results) < 5:
+                        seen_urls.add(url)
+                        results.append({
+                            "title": f"Citation for: {query}",
+                            "url": url,
+                            "snippet": content[:300] + "...",
+                            "date": datetime.now(timezone.utc).isoformat(),
+                            "source_quality": get_quality(url)
                         })
                         
                 if not results:
@@ -67,7 +90,7 @@ class PerplexityProvider:
                         "url": "https://perplexity.ai/search",
                         "snippet": content[:500],
                         "date": datetime.now(timezone.utc).isoformat(),
-                        "source_quality": 0
+                        "source_quality": 60
                     })
                 return results
         except Exception as e:

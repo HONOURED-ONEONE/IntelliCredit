@@ -65,17 +65,17 @@ async def health_ready():
         "write_access": write_ok,
         "llm_live": {
             "skipped": not config.get("features", {}).get("enable_live_llm", False),
-            "ready": bool(os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")),
+            "ok": bool(os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")),
             "reason": "Missing OPENAI_API_KEY or ANTHROPIC_API_KEY" if not bool(os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")) else "OK"
         },
         "search_live": {
             "skipped": not config.get("features", {}).get("enable_live_search", False),
-            "ready": bool(os.getenv("PPLX_API_KEY") or os.getenv("TAVILY_API_KEY") or os.getenv("BING_SUBSCRIPTION_KEY")),
+            "ok": bool(os.getenv("PPLX_API_KEY") or os.getenv("TAVILY_API_KEY") or os.getenv("BING_SUBSCRIPTION_KEY")),
             "reason": "Missing Search keys" if not bool(os.getenv("PPLX_API_KEY") or os.getenv("TAVILY_API_KEY") or os.getenv("BING_SUBSCRIPTION_KEY")) else "OK"
         },
         "databricks_live": {
             "skipped": not config.get("features", {}).get("enable_live_databricks", False),
-            "ready": bool(os.getenv("DATABRICKS_HOST") and os.getenv("DATABRICKS_TOKEN")),
+            "ok": bool(os.getenv("DATABRICKS_HOST") and os.getenv("DATABRICKS_TOKEN")),
             "reason": "Missing DATABRICKS_HOST or DATABRICKS_TOKEN" if not bool(os.getenv("DATABRICKS_HOST") and os.getenv("DATABRICKS_TOKEN")) else "OK"
         }
     }

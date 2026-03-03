@@ -116,6 +116,7 @@ def build_evidence_pack(job_dir: Path, cfg: dict):
                 doc_evidences.append({
                     "field": f.get("field"),
                     "page": f.get("page"),
+                    "file": f.get("file"),
                     "snippet": snippet
                 })
                 
@@ -130,7 +131,8 @@ def build_evidence_pack(job_dir: Path, cfg: dict):
                 "bytes": doc_file.stat().st_size,
                 "sha256": sha256_of_file(doc_file),
                 "source_artifact": "facts.jsonl",
-                "contract": "facts"
+                "contract": "facts",
+                "anchors": [{"file": d.get("file"), "page": d.get("page")} for d in doc_evidences]
             })
             
         if store_page_images:

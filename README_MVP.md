@@ -6,11 +6,14 @@ Welcome to the IntelliCredit MVP. This system automates deterministic and LLM-as
 
 1. **Local Mock (offline)**: Runs completely offline using mock CSVs and data. No API keys required.
 2. **Local Uploads**: Upload PDFs and CSVs manually via the Streamlit UI.
-3. **Databricks Files / Tables**: Integrates directly with Databricks Volumes/DBFS and Unity Catalog. Requires `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, and `DATABRICKS_HTTP_PATH`. *Note: The Live Databricks files mode now supports full DBFS file hydration into the local inputs directory before extraction.*
+3. **Databricks Files / Tables**: Integrates directly with Databricks Volumes/DBFS and Unity Catalog. Requires `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, and `DATABRICKS_HTTP_PATH`.
+   - *Databricks Files Mode (Live)*: Hydrates PDFs directly from DBFS into the local inputs directory before extraction.
+   - *UC Schema Mapping*: Arbitrary Databricks Unity Catalog tables are gracefully mapped to the canonical `gst_returns` and `bank_transactions` schemas, automatically ignoring extraneous columns or generating synthesized zero values for missing elements.
 
 ## Search & Citations
 
-- **Perplexity Integration**: When using the Perplexity provider (via `PPLX_API_KEY`), the results are now automatically parsed into structured citations (up to 5 per query) and include heuristics for source quality rating (+20 for `.gov` or `reuters`).
+- **Perplexity Integration**: When using the Perplexity provider (via `PPLX_API_KEY`), the results are now automatically parsed into structured citations (up to 5 per query) and include heuristics for source quality rating (+20 for `.gov` or `reuters`). Citations are deduplicated based on canonical URLs.
+- **IndianKanoon Stub**: Provides a stub for synthetic legal citations. Enable via `search.legal_sources.indiankanoon.enabled: true`. Adds up to 2 legal citation links per entity.
 
 ## Governance & Evidence
 
@@ -27,6 +30,19 @@ Welcome to the IntelliCredit MVP. This system automates deterministic and LLM-as
 - **YAML-Driven Pricing**: The Decision Engine derives its scoring model, threshold values, and pricing curves directly from `config/base.yaml` via the `decision:` block, rather than hardcoded logic.
 - **Backward Compatible**: The provided default configuration perfectly reproduces the legacy deterministic logic.
 - **Inline Policy Gates**: Any `CRITICAL` issues in upstream validation reports automatically trigger a `REFER` action inside the engine and append the block reason directly to the CAM narrative drivers.
+### OCR & Cleanup (Optional)
+Extraction hardening includes optional graceful OCR fallback and light image cleanup.
+To use OCR, install the optional dependencies (`pytesseract`, `opencv-python`) and system dependency `tesseract`.
+
+Feature flags in `config/base.yaml`:
+```yaml
+features:
+  ocr:
+    enabled: true
+  cleanup:
+    enabled: true
+```
+If disabled or dependencies are missing, the pipeline gracefully falls back to basic `pdfplumber` extraction with zero changes.
 
 ## How to Run (Local Docker Compose)
 
