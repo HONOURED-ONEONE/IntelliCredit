@@ -12,7 +12,8 @@ Welcome to the IntelliCredit MVP. This system automates deterministic and LLM-as
 
 ## Search & Citations
 
-- **Perplexity Integration**: When using the Perplexity provider (via `PPLX_API_KEY`), the results are now automatically parsed into structured citations (up to 5 per query) and include heuristics for source quality rating (+20 for `.gov` or `reuters`).
+- **Perplexity Integration**: When using the Perplexity provider (via `PPLX_API_KEY`), the results are now automatically parsed into structured citations (up to 5 per query) and include heuristics for source quality rating (+20 for `.gov` or `reuters`). Citations are deduplicated based on canonical URLs.
+- **IndianKanoon Stub**: Provides a stub for synthetic legal citations. Enable via `search.legal_sources.indiankanoon.enabled: true`. Adds up to 2 legal citation links per entity.
 
 ## Governance & Evidence
 
