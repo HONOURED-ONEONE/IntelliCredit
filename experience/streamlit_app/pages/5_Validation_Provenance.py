@@ -18,7 +18,25 @@ tab1, tab2, tab3, tab4 = st.tabs(["Validation", "Provenance", "Metrics", "Eviden
 
 # 1. Validation Tab
 with tab1:
-    st.header("Stage Validation Reports")
+    st.header("Aggregate Validation")
+    res_agg = requests.get(f"{api_url}/jobs/{job_id}/validation/aggregate")
+    if res_agg.status_code == 200:
+        agg = res_agg.json()
+        st.subheader("Summary")
+        st.json(agg.get("summary", {}))
+        
+        issues = agg.get("issues", [])
+        if issues:
+            st.subheader("All Issues")
+            df = pd.DataFrame(issues)
+            st.dataframe(df[["stage", "severity", "code", "message"]])
+        else:
+            st.success("No issues found across stages.")
+    else:
+        st.info("Aggregate validation not yet available.")
+
+    st.markdown("---")
+    st.header("Per-Stage Validation Reports")
     stages = ["ingestor", "research", "primary", "decision"]
     for stage in stages:
         st.subheader(f"{stage.title()} Validation")

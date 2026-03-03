@@ -26,6 +26,7 @@ Schema:
             content = response.content[0].text
             usage = response.usage
             metrics = {
+                "provider": "anthropic",
                 "prompt_tokens": usage.input_tokens,
                 "completion_tokens": usage.output_tokens,
                 "model": model

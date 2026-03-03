@@ -56,6 +56,17 @@ def mark_stage(job_dir: Path, stage: str, started_at: str, ended_at: str, output
     
     with open(prov_file, "w", encoding="utf-8") as f:
         json.dump(prov, f, indent=2)
+        
+    try:
+        from datetime import datetime, timezone
+        start_dt = datetime.fromisoformat(started_at)
+        end_dt = datetime.fromisoformat(ended_at)
+        duration = (end_dt - start_dt).total_seconds()
+        
+        from governance.observability.prom import observe_stage_duration
+        observe_stage_duration(stage, duration)
+    except Exception:
+        pass
 
 def finish_run(job_dir: Path, status: str):
     prov_file = job_dir / "provenance.json"
@@ -84,3 +95,31 @@ def append_metrics(job_dir: Path, namespace: str, metrics: dict):
     data[namespace] = metrics
     with open(metrics_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
+        
+    try:
+        from orchestration.job_runner import load_config
+        config = load_config()
+    except Exception:
+        config = {}
+        
+    if "prompt_tokens" in metrics or "completion_tokens" in metrics:
+        usage_dict = {
+            "type": "llm",
+            "provider": metrics.get("provider", "unknown"),
+            "model": metrics.get("model", ""),
+            "prompt_tokens": metrics.get("prompt_tokens", 0),
+            "completion_tokens": metrics.get("completion_tokens", 0),
+            "calls": metrics.get("calls", 1)
+        }
+    else:
+        usage_dict = {
+            "type": "search",
+            "provider": metrics.get("provider", "unknown"),
+            "calls": metrics.get("calls", 1)
+        }
+        
+    try:
+        from governance.provenance.metrics_append import append_usage
+        append_usage(job_dir, config, usage_dict)
+    except Exception as e:
+        pass
