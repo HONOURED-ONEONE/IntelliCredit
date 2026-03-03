@@ -57,6 +57,8 @@ def validate_ingestor(job_dir: Path) -> dict:
     
     modified = False
     
+    import re
+
     for f in facts:
         report["counts"]["fields_checked"] += 1
         
@@ -67,10 +69,23 @@ def validate_ingestor(job_dir: Path) -> dict:
                 _add_issue(report, stage, "INFO", "PERIOD_NORMALIZED", f"Normalized period {f['period']} to {norm_p}", str(facts_path))
                 f["period"] = norm_p
                 modified = True
+            if not re.match(r"^\d{4}(-[Q0-9]{2})?$", norm_p):
+                _add_issue(report, stage, "WARN", "UNRECOGNIZED_PERIOD", f"Unrecognized period format: {norm_p}", str(facts_path))
                 
-        if isinstance(f.get("value"), str) and any(x in f.get("value", "") for x in ["₹", "Cr", "Crore", "Lakh"]):
-            val, unit = coerce_currency(f["value"])
-            _add_issue(report, stage, "INFO", "CURRENCY_NORMALIZED", f"Normalized currency {f['value']} to {val} {unit}", str(facts_path))
+        if isinstance(f.get("value"), str) and any(x in f.get("value", "") for x in ["₹", "Cr", "Crore", "Lakh", "(", ")"]):
+            val_str = f["value"]
+            val, unit = coerce_currency(val_str)
+            try:
+                match = re.search(r"([\d\.]+)", val_str.replace(",", ""))
+                raw_float = float(match.group(1)) if match else val
+            except:
+                raw_float = val
+                
+            if raw_float != 0 and abs(val - raw_float) / abs(raw_float) > 0.05:
+                _add_issue(report, stage, "WARN", "CURRENCY_DIFFERENCE", f"Normalized currency {val_str} to {val} {unit} differs by >5%", str(facts_path))
+            else:
+                _add_issue(report, stage, "INFO", "CURRENCY_NORMALIZED", f"Normalized currency {val_str} to {val} {unit}", str(facts_path))
+                
             f["value"] = val
             f["unit"] = unit
             modified = True

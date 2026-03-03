@@ -16,6 +16,20 @@ Welcome to the IntelliCredit MVP. This system automates deterministic and LLM-as
 
 - **Evidence Page Images**: Set `governance.evidence.store_page_images: true` in `config/base.yaml` to export low-res JPEG snapshots of processed PDF pages into `evidence_pack/docs/pages/`. Hashes for these images are appended to `evidence_manifest.json`.
 
+### OCR & Cleanup (Optional)
+Extraction hardening includes optional graceful OCR fallback and light image cleanup.
+To use OCR, install the optional dependencies (`pytesseract`, `opencv-python`) and system dependency `tesseract`.
+
+Feature flags in `config/base.yaml`:
+```yaml
+features:
+  ocr:
+    enabled: true
+  cleanup:
+    enabled: true
+```
+If disabled or dependencies are missing, the pipeline gracefully falls back to basic `pdfplumber` extraction with zero changes.
+
 ## How to Run (Local Docker Compose)
 
 1. Copy `.env.example` to `.env`. Fill out any API keys if you plan to use live LLMs or live Search. You do not need any keys for the offline mock mode.

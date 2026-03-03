@@ -95,15 +95,31 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
     gst_df.to_csv(out_dir / "gst_returns.csv", index=False)
     bank_df.to_csv(out_dir / "bank_transactions.csv", index=False)
 
+    ocr_enabled = cfg.get("features", {}).get("ocr", {}).get("enabled", False)
+    cleanup_enabled = cfg.get("features", {}).get("cleanup", {}).get("enabled", False)
+
     documents = []
     facts = [
-        {"field": "total_gst_sales", "value": total_gst_sales},
-        {"field": "total_bank_inflow", "value": total_bank_inflow},
-        {"field": "total_bank_outflow", "value": total_bank_outflow}
+        {"field": "total_gst_sales", "value": total_gst_sales, "page": 1, "file": "gst_returns.csv", "evidence_snippet": "Computed from GST DB/CSV"},
+        {"field": "total_bank_inflow", "value": total_bank_inflow, "page": 1, "file": "bank_transactions.csv", "evidence_snippet": "Computed from Bank DB/CSV"},
+        {"field": "total_bank_outflow", "value": total_bank_outflow, "page": 1, "file": "bank_transactions.csv", "evidence_snippet": "Computed from Bank DB/CSV"}
     ]
 
     for pdf_file in pdf_paths:
         pages_text = extract_text_pages(pdf_file)
+        
+        if ocr_enabled:
+            from providers.ocr.tesseract import available as ocr_available, image_from_pdf_page, ocr_image
+            from providers.ocr.cleanup import cleanup_image
+            if ocr_available():
+                for page_data in pages_text:
+                    if len(page_data.get("text", "").strip()) < 50:
+                        img = image_from_pdf_page(str(pdf_file), page_data["page"] - 1)
+                        if img:
+                            img = cleanup_image(img, enabled=cleanup_enabled)
+                            ocr_txt = ocr_image(img)
+                            if ocr_txt:
+                                page_data["text"] = page_data.get("text", "") + "\n" + ocr_txt
         
         if enable_live_llm and os.getenv("OPENAI_API_KEY"):
             try:
@@ -155,9 +171,15 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
                             if isinstance(fact, dict) and "facts" in fact:
                                 for f in fact["facts"]:
                                     f["page"] = 1
+                                    f["file"] = pdf_file.name
+                                    if "evidence_snippet" not in f:
+                                        f["evidence_snippet"] = pages_text[0]["text"][:300] if pages_text else "Extracted via Vision API"
                                     facts.append(f)
                             elif isinstance(fact, dict) and "field" in fact:
                                 fact["page"] = 1
+                                fact["file"] = pdf_file.name
+                                if "evidence_snippet" not in fact:
+                                    fact["evidence_snippet"] = pages_text[0]["text"][:300] if pages_text else "Extracted via Vision API"
                                 facts.append(fact)
             except Exception as e:
                 logger.warning(f"Vision extraction failed: {e}")
