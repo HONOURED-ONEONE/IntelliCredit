@@ -1,10 +1,16 @@
 from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Literal
 
 class JobPayload(BaseModel):
     """Payload for starting a new job."""
-    source: str = Field(..., description="Source text or identifier for the job")
+    source: str = Field(default="system", description="Source text or identifier for the job")
     parameters: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional parameters")
+    company_name: Optional[str] = None
+    promoter: Optional[str] = None
+    notes: Optional[str] = None
+    provider_mode: Optional[Literal["mock", "local_uploads"]] = None
+    use_mock_uc: Optional[bool] = None
+    use_mock_pdfs: Optional[bool] = None
 
 class JobResponse(BaseModel):
     """Response when a job is created."""

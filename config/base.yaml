@@ -5,3 +5,12 @@ streamlit:
   port: 8501
 paths:
   output_root: "outputs/jobs"
+providers:
+  mode: "mock"
+  search_provider: "mock"
+mock_paths:
+  pdf_dir: "mock_dbx/dbfs"
+  gst_uc_csv: "mock_dbx/uc/gst_returns_sample.csv"
+  bank_uc_csv: "mock_dbx/uc/bank_transactions_sample.csv"
+contracts:
+  strict: true

@@ -16,8 +16,8 @@ def load_config() -> dict:
 
 async def run_job_async(job_id: str, payload: dict):
     """
-    Executes a minimal end-to-end job.
-    Transitions status: started -> ingestor -> completed
+    Executes an end-to-end job.
+    Transitions status: started -> ingestor -> research -> primary -> decision -> completed
     """
     project_root = Path(__file__).resolve().parent.parent
     config = load_config()
@@ -29,11 +29,11 @@ async def run_job_async(job_id: str, payload: dict):
     logs_file = job_dir / "logs.txt"
     provenance_file = job_dir / "provenance.json"
     
-    # Configure logger for this job
     job_logger = logger.bind(job_id=job_id)
     handler_id = logger.add(logs_file, format="{time} | {level} | {message}", filter=lambda record: record["extra"].get("job_id") == job_id)
     
     try:
+        current_status = {}
         if status_file.exists():
             with open(status_file, "r") as f:
                 current_status = json.load(f)
@@ -45,37 +45,59 @@ async def run_job_async(job_id: str, payload: dict):
             status = {
                 "job_id": job_id,
                 "stage": stage,
-                "created_at": datetime.utcnow().isoformat() + "Z",
+                "created_at": current_status.get("created_at", datetime.utcnow().isoformat() + "Z"),
                 "updated_at": datetime.utcnow().isoformat() + "Z"
             }
-            if status_file.exists():
-                with open(status_file, "r") as f:
-                    old_status = json.load(f)
-                status["created_at"] = old_status.get("created_at", status["created_at"])
             with open(status_file, "w") as f:
                 json.dump(status, f, indent=2)
             job_logger.info(f"Status updated to: {stage}")
 
-        # Start job
-        update_status("started")
-        await asyncio.sleep(1) # Simulate work
+        if not current_status:
+            update_status("started")
+            provenance = {
+                "job_id": job_id,
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "payload_echo": payload,
+                "config_snapshot": config,
+                "timing": {}
+            }
+            with open(provenance_file, "w") as f:
+                json.dump(provenance, f, indent=2)
+            job_logger.info("Provenance written.")
+            
+        def update_prov_timing(stage: str):
+            if provenance_file.exists():
+                with open(provenance_file, "r") as f:
+                    prov = json.load(f)
+                prov.setdefault("timing", {})[stage] = datetime.utcnow().isoformat() + "Z"
+                with open(provenance_file, "w") as f:
+                    json.dump(prov, f, indent=2)
+
+        stages = ["ingestor", "research", "primary", "decision"]
         
-        # Write provenance
-        provenance = {
-            "job_id": job_id,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "payload_echo": payload,
-            "config_snapshot": config
+        from intelligence.ingestor import ingestor
+        from intelligence.research import research_agent
+        from intelligence.primary import primary_agent
+        from intelligence.decision_engine import decision_engine
+        
+        module_map = {
+            "ingestor": ingestor,
+            "research": research_agent,
+            "primary": primary_agent,
+            "decision": decision_engine
         }
-        with open(provenance_file, "w") as f:
-            json.dump(provenance, f, indent=2)
-        job_logger.info("Provenance written.")
-        
-        # Ingestor stage
-        update_status("ingestor")
-        await asyncio.sleep(2) # Simulate work
-        
-        # Complete
+
+        for stage in stages:
+            stage_dir = job_dir / (stage if stage != "decision" else "decision_engine")
+            if stage_dir.exists() and (stage_dir / "validation_report.json").exists():
+                job_logger.info(f"Stage {stage} outputs exist. Resume-skip.")
+            else:
+                update_status(stage)
+                job_logger.info(f"Running {stage}...")
+                module_map[stage].run(job_dir, config, payload)
+                update_prov_timing(stage)
+                await asyncio.sleep(0.5)
+
         update_status("completed")
         job_logger.info("Job completed successfully.")
         
