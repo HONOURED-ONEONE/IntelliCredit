@@ -2,6 +2,7 @@ import os
 import pandas as pd
 from loguru import logger
 from tenacity import retry, stop_after_attempt, wait_exponential
+from pathlib import Path
 
 class DatabricksConnector:
     def __init__(self, cfg: dict):
@@ -30,6 +31,20 @@ class DatabricksConnector:
                 logger.error("Error listing PDFs in Databricks DBFS")
             else:
                 logger.error(f"Error listing PDFs in Databricks DBFS: {e}")
+            raise e
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    def download_dbfs_file(self, remote_path: str, dest_path: Path) -> Path:
+        try:
+            with self.client.dbfs.download(remote_path) as reader:
+                with open(dest_path, "wb") as f:
+                    f.write(reader.read())
+            return dest_path
+        except Exception as e:
+            if self.cfg.get("security", {}).get("redact_keys_in_logs", True):
+                logger.error("Error downloading file from Databricks DBFS")
+            else:
+                logger.error(f"Error downloading file from Databricks DBFS: {e}")
             raise e
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))

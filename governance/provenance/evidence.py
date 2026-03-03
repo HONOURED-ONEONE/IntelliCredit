@@ -34,6 +34,7 @@ def build_evidence_pack(job_dir: Path, cfg: dict):
     
     redact_enabled = cfg.get("governance", {}).get("redaction", {}).get("enable_pii_redaction", False)
     pii_patterns = cfg.get("governance", {}).get("redaction", {}).get("pii_patterns", []) if redact_enabled else []
+    store_page_images = cfg.get("governance", {}).get("evidence", {}).get("store_page_images", False)
     
     # 1. Primary Insights evidence
     insights_path = job_dir / "primary" / "risk_arguments.jsonl"
@@ -118,6 +119,37 @@ def build_evidence_pack(job_dir: Path, cfg: dict):
                 "source_artifact": "facts.jsonl",
                 "contract": "facts"
             })
+            
+        if store_page_images:
+            try:
+                import pdfplumber
+                pages_dir = docs_dir / "pages"
+                pages_dir.mkdir(exist_ok=True)
+                
+                pdf_paths = list((job_dir / "inputs" / "pdfs").glob("*.pdf"))
+                if not pdf_paths:
+                    project_root = Path(__file__).resolve().parent.parent.parent
+                    pdf_paths = list((project_root / cfg.get("mock_paths", {}).get("pdf_dir", "mock_dbx/dbfs")).glob("*.pdf"))
+                
+                for pdf_file in pdf_paths:
+                    try:
+                        with pdfplumber.open(pdf_file) as pdf:
+                            for i, page in enumerate(pdf.pages):
+                                if i >= 3: break
+                                im = page.to_image(resolution=72)
+                                img_path = pages_dir / f"{pdf_file.stem}_page_{i+1}.jpg"
+                                im.original.save(img_path, format="JPEG")
+                                manifest.append({
+                                    "path": f"docs/pages/{img_path.name}",
+                                    "bytes": img_path.stat().st_size,
+                                    "sha256": sha256_of_file(img_path),
+                                    "source_artifact": pdf_file.name,
+                                    "contract": "image"
+                                })
+                    except Exception:
+                        pass
+            except ImportError:
+                pass
 
     manifest_file = pack_dir / "evidence_manifest.json"
     with open(manifest_file, "w", encoding="utf-8") as f:

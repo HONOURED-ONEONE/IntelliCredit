@@ -18,8 +18,7 @@ def cam_to_docx(job_dir: Path) -> Path:
         with open(cam_md_path, "r", encoding="utf-8") as f:
             content = f.read()
             
-        for line in content.split('
-'):
+        for line in content.split('\\n'):
             line = line.strip()
             if not line:
                 continue
@@ -57,8 +56,7 @@ def cam_to_pdf(job_dir: Path) -> Path:
         with open(cam_md_path, "r", encoding="utf-8") as f:
             content = f.read()
             
-        for line in content.split('
-'):
+        for line in content.split('\\n'):
             line = line.strip()
             if not line:
                 Story.append(Spacer(1, 12))

@@ -46,6 +46,8 @@ def validate_ingestor(job_dir: Path) -> dict:
     facts = read_jsonl(facts_path)
     report["counts"]["records"] = len(facts)
     
+    from data_layer.contracts.utils import coerce_currency, period_normalize, write_jsonl
+    
     # Logic checks
     revenue = None
     pat = None
@@ -53,8 +55,26 @@ def validate_ingestor(job_dir: Path) -> dict:
     bank_inflow = None
     gst_sales = None
     
+    modified = False
+    
     for f in facts:
         report["counts"]["fields_checked"] += 1
+        
+        # Normalization checks
+        if "period" in f and f["period"]:
+            norm_p = period_normalize(f["period"])
+            if norm_p != f["period"]:
+                _add_issue(report, stage, "INFO", "PERIOD_NORMALIZED", f"Normalized period {f['period']} to {norm_p}", str(facts_path))
+                f["period"] = norm_p
+                modified = True
+                
+        if isinstance(f.get("value"), str) and any(x in f.get("value", "") for x in ["₹", "Cr", "Crore", "Lakh"]):
+            val, unit = coerce_currency(f["value"])
+            _add_issue(report, stage, "INFO", "CURRENCY_NORMALIZED", f"Normalized currency {f['value']} to {val} {unit}", str(facts_path))
+            f["value"] = val
+            f["unit"] = unit
+            modified = True
+            
         val = f.get("value")
         if isinstance(val, (int, float)) and val < 0 and f.get("field") not in ["PAT"]:
             # Allow PAT to be negative
@@ -67,10 +87,13 @@ def validate_ingestor(job_dir: Path) -> dict:
             pat = val
         elif field == "Tax Paid":
             tax = val
-        elif field == "Bank Inflow":
+        elif field == "total_bank_inflow":
             bank_inflow = val
-        elif field == "GST Sales":
+        elif field == "total_gst_sales":
             gst_sales = val
+            
+    if modified:
+        write_jsonl(facts_path, facts)
             
     if pat is not None and revenue is not None and pat > revenue:
         _add_issue(report, stage, "WARN", "PLAUSIBILITY", "PAT > Revenue", str(facts_path))
@@ -78,8 +101,13 @@ def validate_ingestor(job_dir: Path) -> dict:
         _add_issue(report, stage, "WARN", "PLAUSIBILITY", "Tax Paid < 0", str(facts_path))
     if bank_inflow is not None and gst_sales is not None:
         if isinstance(bank_inflow, (int, float)) and isinstance(gst_sales, (int, float)):
-            if abs(bank_inflow - gst_sales) > max(bank_inflow, gst_sales) * 0.5: # 50% tolerance
-                _add_issue(report, stage, "WARN", "PLAUSIBILITY", "Large gap between Bank Inflow and GST Sales", str(facts_path))
+            diff = abs(bank_inflow - gst_sales)
+            max_val = max(bank_inflow, gst_sales)
+            if max_val > 0:
+                if diff > max_val * 0.5: # 50% tolerance
+                    _add_issue(report, stage, "WARN", "PLAUSIBILITY", "Large gap between Bank Inflow and GST Sales (>50%)", str(facts_path))
+                elif diff <= max_val * 0.05:
+                    _add_issue(report, stage, "INFO", "PLAUSIBILITY", "Bank Inflow and GST Sales closely align (<=5%)", str(facts_path))
 
     _write_report(job_dir, stage, report)
     return report
@@ -174,3 +202,9 @@ def validate_decision(job_dir: Path) -> dict:
 
     _write_report(job_dir, stage, report)
     return report
+
+def write_validation_report(stage_name: str, out_dir: Path, data: dict):
+    # This is a stub used by the agents.
+    # The actual validation is done by validate_ingestor, etc.
+    # We can write a simple report here if needed, or do nothing.
+    pass

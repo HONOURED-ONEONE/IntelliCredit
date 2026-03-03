@@ -36,15 +36,40 @@ class PerplexityProvider:
                 data = resp.json()
                 
                 content = data["choices"][0]["message"]["content"]
+                citations = data.get("citations", [])
                 
-                res = {
-                    "title": f"Perplexity Analysis for: {query}",
-                    "url": "https://perplexity.ai/search",
-                    "snippet": content[:500],
-                    "date": datetime.now(timezone.utc).isoformat(),
-                    "source_quality": 90
-                }
-                return [res]
+                results = []
+                for i, url in enumerate(citations):
+                    results.append({
+                        "title": f"Source {i+1} for: {query}",
+                        "url": url,
+                        "snippet": content[:300] + "...",
+                        "date": datetime.now(timezone.utc).isoformat(),
+                        "source_quality": 0 # will be calculated in agent
+                    })
+                
+                if not results:
+                    import re
+                    urls = re.findall(r'(https?://[^\s\)]+)', content)
+                    urls = list(dict.fromkeys(urls))
+                    for i, url in enumerate(urls[:5]):
+                        results.append({
+                            "title": f"Extracted Source {i+1}",
+                            "url": url,
+                            "snippet": content[:300] + "...",
+                            "date": datetime.now(timezone.utc).isoformat(),
+                            "source_quality": 0
+                        })
+                        
+                if not results:
+                    results.append({
+                        "title": f"Perplexity Analysis for: {query}",
+                        "url": "https://perplexity.ai/search",
+                        "snippet": content[:500],
+                        "date": datetime.now(timezone.utc).isoformat(),
+                        "source_quality": 0
+                    })
+                return results
         except Exception as e:
             if self.cfg.get("security", {}).get("redact_keys_in_logs", True):
                 logger.error("Perplexity search failed")
