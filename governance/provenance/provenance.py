@@ -70,3 +70,17 @@ def finish_run(job_dir: Path, status: str):
     
     with open(prov_file, "w", encoding="utf-8") as f:
         json.dump(prov, f, indent=2)
+
+def append_metrics(job_dir: Path, namespace: str, metrics: dict):
+    metrics_file = job_dir / "metrics.json"
+    data = {}
+    if metrics_file.exists():
+        try:
+            with open(metrics_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            pass
+            
+    data[namespace] = metrics
+    with open(metrics_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
