@@ -48,8 +48,7 @@ def test_quote_linking(tmp_path):
     
     doc_path = job_dir / "ingestor" / "documents.jsonl"
     with open(doc_path, "w") as f:
-        f.write(json.dumps({"file": "test.pdf", "pages": [{"page": 1, "text": "This is a great client indeed."}]}) + "
-")
+        f.write(json.dumps({"file": "test.pdf", "pages": [{"page": 1, "text": "This is a great client indeed."}]}) + "\n")
         
     cfg = {"features": {"enable_live_llm": False}}
     payload = {
@@ -77,8 +76,7 @@ def test_primary_validation(tmp_path):
     ]
     with open(out_dir / "risk_arguments.jsonl", "w") as f:
         for a in args:
-            f.write(json.dumps(a) + "
-")
+            f.write(json.dumps(a) + "\n")
             
     report = validate_primary(job_dir)
     issues = [i["code"] for i in report["issues"]]

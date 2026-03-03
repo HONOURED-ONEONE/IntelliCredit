@@ -1,7 +1,14 @@
 from pathlib import Path
 from loguru import logger
-import markdownify
 import json
+import re
+import xml.sax.saxutils as saxutils
+
+def _safe_richtext(text: str) -> str:
+    """Escapes XML and converts **bold** to <b>bold</b> safely."""
+    escaped = saxutils.escape(text)
+    # Non-greedy bold conversion that doesn't cross line boundaries
+    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", escaped)
 
 def cam_to_docx(job_dir: Path) -> Path:
     cam_md_path = job_dir / "decision_engine" / "cam.md"
@@ -18,7 +25,7 @@ def cam_to_docx(job_dir: Path) -> Path:
         with open(cam_md_path, "r", encoding="utf-8") as f:
             content = f.read()
             
-        for line in content.split('\\n'):
+        for line in content.split('\n'):
             line = line.strip()
             if not line:
                 continue
@@ -51,33 +58,32 @@ def cam_to_pdf(job_dir: Path) -> Path:
         
         doc = SimpleDocTemplate(str(out_path), pagesize=letter)
         styles = getSampleStyleSheet()
-        Story = []
+        story = []
         
         with open(cam_md_path, "r", encoding="utf-8") as f:
             content = f.read()
             
-        for line in content.split('\\n'):
+        for line in content.split('\n'):
             line = line.strip()
             if not line:
-                Story.append(Spacer(1, 12))
+                story.append(Spacer(1, 12))
                 continue
             
-            # Simple conversion
-            line = line.replace("**", "<b>").replace("**", "</b>") # Needs real regex for toggle, this is a hack, Reportlab handles bold with <b>
-            # basic fix for bold
-            import re
-            line = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', line)
-            
             if line.startswith('# '):
-                Story.append(Paragraph(line[2:], styles['Heading1']))
+                text = _safe_richtext(line[2:])
+                story.append(Paragraph(text, styles['Heading1']))
             elif line.startswith('## '):
-                Story.append(Paragraph(line[3:], styles['Heading2']))
+                text = _safe_richtext(line[3:])
+                story.append(Paragraph(text, styles['Heading2']))
             elif line.startswith('- '):
-                Story.append(Paragraph(line, styles['Bullet']))
+                # Use bulletText for simpler bulleting
+                text = _safe_richtext(line[2:])
+                story.append(Paragraph(text, styles['Normal'], bulletText="•"))
             else:
-                Story.append(Paragraph(line, styles['Normal']))
+                text = _safe_richtext(line)
+                story.append(Paragraph(text, styles['Normal']))
                 
-        doc.build(Story)
+        doc.build(story)
         return out_path
     except Exception as e:
         logger.error(f"Failed to create PDF: {e}")

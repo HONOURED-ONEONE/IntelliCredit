@@ -24,8 +24,7 @@ def test_config_driven_decision(tmp_path):
         
     job_dir.joinpath("research").mkdir(parents=True)
     with open(job_dir / "research" / "research_findings.jsonl", "w") as f:
-        f.write(json.dumps({"stance": "adverse"}) + "
-")
+        f.write(json.dumps({"stance": "adverse"}) + "\n")
         
     job_dir.joinpath("primary").mkdir(parents=True)
     with open(job_dir / "primary" / "impact_report.json", "w") as f:

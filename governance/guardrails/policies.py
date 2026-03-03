@@ -26,7 +26,7 @@ def apply_gates(job_dir: Path, cfg: dict) -> dict:
     # Check configured missing data policy and missing artifacts
     # Here we simulate basic check, in reality it should look at the output logic
     # Assume facts.jsonl must exist after ingestor
-    if not (job_dir / "facts.jsonl").exists() and (job_dir / "ingestor_validation_report.json").exists():
+    if not (job_dir / "ingestor" / "facts.jsonl").exists() and (job_dir / "ingestor_validation_report.json").exists():
         missing_policy = cfg.get("gates", {}).get("missing_data_policy", "REFER")
         if missing_policy != "ALLOW":
             action = missing_policy
