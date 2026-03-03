@@ -46,14 +46,18 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
         gst_table = payload.get("gst_table") or cfg.get("integrations", {}).get("databricks", {}).get("gst_table", "gst_returns")
         bank_table = payload.get("bank_table") or cfg.get("integrations", {}).get("databricks", {}).get("bank_table", "bank_transactions")
         
+        from providers.databricks.schema_map import to_canonical_gst, to_canonical_bank
+        
         try:
-            gst_df = dbx.read_uc_table(catalog, schema, gst_table)
+            raw_gst = dbx.read_uc_table(catalog, schema, gst_table)
+            gst_df = to_canonical_gst(raw_gst)
         except Exception as e:
             logger.warning(f"Failed to read GST table {gst_table}: {e}")
             with open(out_dir / "stage_note.txt", "a") as f: f.write("databricks_live_error=true\n")
             
         try:
-            bank_df = dbx.read_uc_table(catalog, schema, bank_table)
+            raw_bank = dbx.read_uc_table(catalog, schema, bank_table)
+            bank_df = to_canonical_bank(raw_bank)
         except Exception as e:
             logger.warning(f"Failed to read Bank table {bank_table}: {e}")
             with open(out_dir / "stage_note.txt", "a") as f: f.write("databricks_live_error=true\n")

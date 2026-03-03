@@ -6,7 +6,9 @@ Welcome to the IntelliCredit MVP. This system automates deterministic and LLM-as
 
 1. **Local Mock (offline)**: Runs completely offline using mock CSVs and data. No API keys required.
 2. **Local Uploads**: Upload PDFs and CSVs manually via the Streamlit UI.
-3. **Databricks Files / Tables**: Integrates directly with Databricks Volumes/DBFS and Unity Catalog. Requires `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, and `DATABRICKS_HTTP_PATH`. *Note: The Live Databricks files mode now supports full DBFS file hydration into the local inputs directory before extraction.*
+3. **Databricks Files / Tables**: Integrates directly with Databricks Volumes/DBFS and Unity Catalog. Requires `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, and `DATABRICKS_HTTP_PATH`.
+   - *Databricks Files Mode (Live)*: Hydrates PDFs directly from DBFS into the local inputs directory before extraction.
+   - *UC Schema Mapping*: Arbitrary Databricks Unity Catalog tables are gracefully mapped to the canonical `gst_returns` and `bank_transactions` schemas, automatically ignoring extraneous columns or generating synthesized zero values for missing elements.
 
 ## Search & Citations
 
