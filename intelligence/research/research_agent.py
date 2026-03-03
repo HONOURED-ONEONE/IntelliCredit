@@ -73,26 +73,41 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
                     mock_prov = MockSearchProvider()
                     results = mock_prov.search(q)
 
+        # De-dup by URL, compute source_quality, cap at 5
+        unique_results = {}
         for r in results:
             url = r.get("url", "")
-            if url in seen_urls: continue
-            seen_urls.add(url)
+            if not url or url in unique_results: continue
             
-            text = f"{r.get('title','')} {r.get('snippet','')}".lower()
-            stance = "adverse" if any(k in text for k in adverse_keywords) else "neutral"
+            sq = r.get("source_quality", 50)
+            url_lower = url.lower()
+            if "gov" in url_lower or "reuters" in url_lower:
+                sq += 20
+            sq = max(0, min(100, sq))
+            r["source_quality"] = sq
             
             # Ensure dates are valid
             date_val = r.get("date", "")
             if not date_val:
                 from datetime import datetime, timezone
-                date_val = datetime.now(timezone.utc).isoformat()
-                r["date"] = date_val
+                r["date"] = datetime.now(timezone.utc).isoformat()
                 
+            unique_results[url] = r
+            
+        capped_results = list(unique_results.values())[:5]
+
+        # Group into a single finding for this query, or multiple if preferred. 
+        # The prompt says: "populate citations with at least 1-3 items, not a single blob."
+        if capped_results:
+            # We'll create one finding per query with all capped_results as its citations
+            text = " ".join([f"{r.get('title','')} {r.get('snippet','')}" for r in capped_results]).lower()
+            stance = "adverse" if any(k in text for k in adverse_keywords) else "neutral"
+            
             findings.append({
-                "entity": q.split()[0], # rough entity
-                "claim": r.get("title") or r.get("snippet")[:100],
+                "entity": q.split()[0],
+                "claim": f"Analysis for {q}",
                 "stance": stance,
-                "citations": [r]
+                "citations": capped_results
             })
 
     with open(out_dir / "research_findings.jsonl", "w", encoding="utf-8") as f:
