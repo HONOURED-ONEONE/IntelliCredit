@@ -1,13 +1,14 @@
+import os
 import httpx
 from datetime import datetime, timezone
 from typing import List
 from loguru import logger
 from tenacity import retry, stop_after_attempt, wait_exponential
-from data_layer.contracts.research import SearchResult
 
 class PerplexityProvider:
-    def __init__(self, api_key: str):
-        self.api_key = api_key
+    def __init__(self, cfg: dict):
+        self.cfg = cfg
+        self.api_key = os.getenv("PPLX_API_KEY")
         self.url = "https://api.perplexity.ai/chat/completions"
 
     @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=5))
@@ -34,8 +35,6 @@ class PerplexityProvider:
                 resp.raise_for_status()
                 data = resp.json()
                 
-                # Mocking a structured response extraction since Perplexity returns text with markdown links
-                # In a real scenario, we'd parse citations. For now, wrap the answer in one synthetic result.
                 content = data["choices"][0]["message"]["content"]
                 
                 res = {
@@ -47,5 +46,8 @@ class PerplexityProvider:
                 }
                 return [res]
         except Exception as e:
-            logger.error(f"Perplexity search failed: {e}")
+            if self.cfg.get("security", {}).get("redact_keys_in_logs", True):
+                logger.error("Perplexity search failed")
+            else:
+                logger.error(f"Perplexity search failed: {e}")
             return []

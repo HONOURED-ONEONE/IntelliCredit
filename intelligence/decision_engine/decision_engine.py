@@ -132,3 +132,8 @@ Include sections for Decision Summary, Risk Drivers, and Artifacts Referenced. L
         f.write(cam_md)
 
     write_validation_report("decision_engine", out_dir, {"decision": decision})
+    
+    if payload.get("export", True):
+        from .export import cam_to_docx, cam_to_pdf
+        cam_to_docx(job_dir)
+        cam_to_pdf(job_dir)

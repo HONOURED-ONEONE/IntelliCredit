@@ -43,9 +43,17 @@ if findings_path.exists():
     if findings:
         df = pd.DataFrame(findings)
         df['citation_url'] = df['citations'].apply(lambda c: c[0]['url'] if c else "")
-        st.dataframe(df[['entity', 'claim', 'stance', 'citation_url']])
+        df['source_quality'] = df['citations'].apply(lambda c: c[0].get('source_quality', 0) if c else 0)
+        st.dataframe(df[['entity', 'claim', 'stance', 'citation_url', 'source_quality']])
 
 api_url = st.session_state.get("api_url", "http://127.0.0.1:8000")
+
+val_res = requests.get(f"{api_url}/jobs/{job_id}/validation?stage=research")
+if val_res.status_code == 200:
+    st.subheader("Validation Summary")
+    rep = val_res.json()
+    st.json(rep.get("summary", {}))
+
 metrics_res = requests.get(f"{api_url}/jobs/{job_id}/metrics")
 if metrics_res.status_code == 200:
     metrics = metrics_res.json()

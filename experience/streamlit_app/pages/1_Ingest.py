@@ -20,11 +20,26 @@ with st.form("job_form"):
     gst_file = None
     bank_file = None
     pdf_file = None
+    dbfs_path = ""
+    catalog = ""
+    schema = ""
+    gst_table = ""
+    bank_table = ""
+    
     if provider_mode == "local_uploads":
         st.subheader("Upload Inputs")
         gst_file = st.file_uploader("GST Returns CSV", type=["csv"])
         bank_file = st.file_uploader("Bank Transactions CSV", type=["csv"])
         pdf_file = st.file_uploader("Financial Docs PDF", type=["pdf"])
+    elif provider_mode == "databricks_files":
+        st.subheader("Databricks Files")
+        dbfs_path = st.text_input("DBFS Path", value="dbfs:/Shared/credit_docs")
+    elif provider_mode == "databricks_tables":
+        st.subheader("Databricks Tables")
+        catalog = st.text_input("Catalog", value="main")
+        schema = st.text_input("Schema", value="credit")
+        gst_table = st.text_input("GST Table Name", value="gst_returns")
+        bank_table = st.text_input("Bank Table Name", value="bank_transactions")
         
     start_button = st.form_submit_button("Start Job")
 
@@ -33,9 +48,15 @@ if start_button:
         "company_name": company_name,
         "promoter": promoter,
         "notes": notes,
-        "provider_mode": provider_mode,
+        "source_mode": provider_mode,
         "enable_live_llm": st.session_state.get("enable_live_llm", False),
         "enable_live_search": st.session_state.get("enable_live_search", False),
+        "enable_live_databricks": st.session_state.get("enable_live_databricks", False),
+        "dbfs_path": dbfs_path,
+        "catalog": catalog,
+        "schema": schema,
+        "gst_table": gst_table,
+        "bank_table": bank_table,
         "source": "streamlit"
     }
     

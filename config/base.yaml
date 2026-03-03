@@ -30,9 +30,52 @@ llm:
     repair: 1500
   enable_cache: true
 search:
-  provider: "mock"
+  provider: "mock"      # mock | perplexity | tavily | bing
   perplexity:
     freshness_days: 365
+  freshness_days: 365
 features:
-  enable_live_llm: false
-  enable_live_search: false
+  enable_live_llm: false         # Phase 3
+  enable_live_search: false      # search providers
+  enable_live_databricks: false  # DBFS/UC
+governance:
+  contracts_version: "0.1.0"
+  validation:
+    strict: true
+    fail_on_critical: true
+  evidence:
+    store_page_images: false
+    compute_checksums: true
+  logging:
+    json: true
+    rotation_mb: 10
+    retention_runs: 20
+  metrics:
+    enable: true
+  redaction:
+    enable_pii_redaction: true
+    pii_patterns:
+      - "PAN"
+      - "Aadhaar"
+      - "IFSC"
+gates:
+  critical_needs_verification:
+    - "kyc_missing"
+    - "audit_report_missing"
+  missing_data_policy: "REFER"
+integrations:
+  databricks:
+    enabled: false
+    mode: "mock"        # mock | live
+    files_root: "dbfs:/Shared/credit_docs"   # used in live mode
+    sql_warehouse: ""   # name or id
+    catalog: ""         # e.g., main
+    schema: ""          # e.g., credit
+    gst_table: "gst_returns"
+    bank_table: "bank_transactions"
+    timeouts_sec: {short: 20, medium: 60}
+    retries: 2
+security:
+  max_request_mb: 10
+  allowed_origins: ["http://localhost:8501"]
+  redact_keys_in_logs: true

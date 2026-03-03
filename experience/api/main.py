@@ -1,25 +1,78 @@
 import uuid
 import json
+import os
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 import sys
 
 project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(project_root))
 
 from orchestration.job_runner import run_job_async, load_config
-from experience.api.schemas import JobPayload, JobResponse, JobStatusResponse, JobResultsResponse, FileInfo
+from experience.api.schemas import JobPayload, JobResponse, JobStatusResponse, JobResultsResponse, FileInfo, FileNode
 
-app = FastAPI(title="IntelliCredit API Phase 3")
+app = FastAPI(title="IntelliCredit API MVP")
+
+config = load_config()
+allowed_origins = config.get("security", {}).get("allowed_origins", ["*"])
+max_req_mb = config.get("security", {}).get("max_request_mb", 10)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class LimitUploadSize(BaseHTTPMiddleware):
+    def __init__(self, app, max_upload_size: int):
+        super().__init__(app)
+        self.max_upload_size = max_upload_size
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method == "POST":
+            if "content-length" in request.headers:
+                content_length = int(request.headers["content-length"])
+                if content_length > self.max_upload_size:
+                    return JSONResponse(status_code=413, content={"detail": "Payload too large"})
+        return await call_next(request)
+
+app.add_middleware(LimitUploadSize, max_upload_size=max_req_mb * 1024 * 1024)
+
+@app.get("/health/live")
+async def health_live():
+    return {"status": "ok", "version": "0.1.0-mvp"}
+
+@app.get("/health/ready")
+async def health_ready():
+    config = load_config()
+    out_dir = project_root / config.get("paths", {}).get("output_root", "outputs/jobs")
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        test_file = out_dir / ".ready_test"
+        test_file.touch()
+        test_file.unlink()
+        write_ok = True
+    except Exception:
+        write_ok = False
+        
+    readiness = {
+        "status": "ready" if write_ok else "not_ready",
+        "write_access": write_ok,
+        "live_features": {
+            "llm": bool(os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")),
+            "search": bool(os.getenv("PPLX_API_KEY") or os.getenv("TAVILY_API_KEY") or os.getenv("BING_SUBSCRIPTION_KEY")),
+            "databricks": bool(os.getenv("DATABRICKS_HOST") and os.getenv("DATABRICKS_TOKEN"))
+        }
+    }
+    
+    if not write_ok:
+        raise HTTPException(status_code=503, detail=readiness)
+    return readiness
 
 @app.post("/jobs", response_model=JobResponse)
 async def create_job(payload: JobPayload, background_tasks: BackgroundTasks):
@@ -65,8 +118,32 @@ async def get_job_provenance(job_id: str):
     with open(prov_file, "r") as f:
         return json.load(f)
 
+@app.get("/jobs/{job_id}/validation")
+async def get_job_validation(job_id: str, stage: str = Query(..., regex="^(ingestor|research|primary|decision)$")):
+    config = load_config()
+    output_root = config.get("paths", {}).get("output_root", "outputs/jobs")
+    val_file = project_root / output_root / job_id / f"{stage}_validation_report.json"
+    
+    if not val_file.exists():
+        raise HTTPException(status_code=404, detail="Validation report not found")
+        
+    with open(val_file, "r") as f:
+        return json.load(f)
+
+@app.get("/jobs/{job_id}/evidence")
+async def get_job_evidence(job_id: str):
+    config = load_config()
+    output_root = config.get("paths", {}).get("output_root", "outputs/jobs")
+    manifest_file = project_root / output_root / job_id / "evidence_pack" / "evidence_manifest.json"
+    
+    if not manifest_file.exists():
+        raise HTTPException(status_code=404, detail="Evidence manifest not found")
+        
+    with open(manifest_file, "r") as f:
+        return json.load(f)
+
 @app.get("/results/{job_id}", response_model=JobResultsResponse)
-async def get_job_results(job_id: str, subdir: str = Query(None)):
+async def get_job_results(job_id: str, subdir: str = Query(None), tree: bool = Query(False)):
     config = load_config()
     output_root = config.get("paths", {}).get("output_root", "outputs/jobs")
     base_dir = project_root / output_root / job_id
@@ -79,10 +156,22 @@ async def get_job_results(job_id: str, subdir: str = Query(None)):
     if not target_dir.exists():
         return JobResultsResponse(job_id=job_id, files=[])
         
-    files = []
-    for file_path in target_dir.rglob("*"):
-        if file_path.is_file():
-            rel_path = file_path.relative_to(base_dir)
-            files.append(FileInfo(name=str(rel_path), size_bytes=file_path.stat().st_size))
+    if tree:
+        def build_tree(path: Path) -> FileNode:
+            node = FileNode(name=path.name, is_dir=path.is_dir())
+            if path.is_dir():
+                node.children = [build_tree(p) for p in sorted(path.iterdir())]
+            else:
+                node.size_bytes = path.stat().st_size
+            return node
             
-    return JobResultsResponse(job_id=job_id, files=files)
+        tree_data = [build_tree(p) for p in sorted(target_dir.iterdir())]
+        return JobResultsResponse(job_id=job_id, tree=tree_data)
+    else:
+        files = []
+        for file_path in target_dir.rglob("*"):
+            if file_path.is_file():
+                rel_path = file_path.relative_to(base_dir)
+                files.append(FileInfo(name=str(rel_path), size_bytes=file_path.stat().st_size))
+                
+        return JobResultsResponse(job_id=job_id, files=files)

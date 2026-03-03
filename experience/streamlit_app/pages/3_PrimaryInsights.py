@@ -52,6 +52,13 @@ if impact_path.exists():
     st.json(impact)
 
 api_url = st.session_state.get("api_url", "http://127.0.0.1:8000")
+
+val_res = requests.get(f"{api_url}/jobs/{job_id}/validation?stage=primary")
+if val_res.status_code == 200:
+    st.subheader("Validation Summary")
+    rep = val_res.json()
+    st.json(rep.get("summary", {}))
+
 metrics_res = requests.get(f"{api_url}/jobs/{job_id}/metrics")
 if metrics_res.status_code == 200:
     metrics = metrics_res.json()

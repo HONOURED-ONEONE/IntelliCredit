@@ -32,6 +32,16 @@ if cam_path.exists():
         cam_md = f.read()
     st.markdown(cam_md)
     st.download_button("Download CAM", cam_md, file_name="cam.md")
+    
+    docx_path = decision_dir / "cam.docx"
+    if docx_path.exists():
+        with open(docx_path, "rb") as f:
+            st.download_button("Download CAM (DOCX)", f, file_name="cam.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            
+    pdf_path = decision_dir / "cam.pdf"
+    if pdf_path.exists():
+        with open(pdf_path, "rb") as f:
+            st.download_button("Download CAM (PDF)", f, file_name="cam.pdf", mime="application/pdf")
 
 col1, col2 = st.columns(2)
 out_path = decision_dir / "decision_output.json"
@@ -49,6 +59,18 @@ if breakdown_path.exists():
     col2.json(breakdown)
 
 api_url = st.session_state.get("api_url", "http://127.0.0.1:8000")
+
+val_res = requests.get(f"{api_url}/jobs/{job_id}/validation?stage=decision")
+if val_res.status_code == 200:
+    st.subheader("Validation Summary")
+    rep = val_res.json()
+    st.json(rep.get("summary", {}))
+
+    if out_path.exists() and "out_json" in locals():
+        if out_json.get("decision") == "REFER":
+            st.error("Decision outcome is REFER. Please review reasons below:")
+            st.write(out_json.get("drivers", []))
+
 metrics_res = requests.get(f"{api_url}/jobs/{job_id}/metrics")
 if metrics_res.status_code == 200:
     metrics = metrics_res.json()
