@@ -54,31 +54,26 @@ async def run_job_async(job_id: str, payload: dict):
 
         if not current_status:
             update_status("started")
+            from governance.provenance.provenance import update_provenance_timing
             provenance = {
                 "job_id": job_id,
                 "timestamp": datetime.utcnow().isoformat() + "Z",
                 "payload_echo": payload,
                 "config_snapshot": config,
-                "timing": {}
+                "timing": {},
+                "models_used": config.get("llm", {}).get("model_map", {})
             }
             with open(provenance_file, "w") as f:
                 json.dump(provenance, f, indent=2)
             job_logger.info("Provenance written.")
             
-        def update_prov_timing(stage: str):
-            if provenance_file.exists():
-                with open(provenance_file, "r") as f:
-                    prov = json.load(f)
-                prov.setdefault("timing", {})[stage] = datetime.utcnow().isoformat() + "Z"
-                with open(provenance_file, "w") as f:
-                    json.dump(prov, f, indent=2)
-
         stages = ["ingestor", "research", "primary", "decision"]
         
         from intelligence.ingestor import ingestor
         from intelligence.research import research_agent
         from intelligence.primary import primary_agent
         from intelligence.decision_engine import decision_engine
+        from governance.provenance.provenance import update_provenance_timing
         
         module_map = {
             "ingestor": ingestor,
@@ -95,7 +90,7 @@ async def run_job_async(job_id: str, payload: dict):
                 update_status(stage)
                 job_logger.info(f"Running {stage}...")
                 module_map[stage].run(job_dir, config, payload)
-                update_prov_timing(stage)
+                update_provenance_timing(job_dir, stage, datetime.utcnow().isoformat() + "Z")
                 await asyncio.sleep(0.5)
 
         update_status("completed")

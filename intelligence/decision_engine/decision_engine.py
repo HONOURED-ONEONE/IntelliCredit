@@ -1,7 +1,9 @@
 import json
+import os
 from pathlib import Path
 from loguru import logger
 from governance.validation.validators import write_validation_report
+from governance.provenance.provenance import append_metrics
 
 def run(job_dir: Path, cfg: dict, payload: dict) -> None:
     out_dir = job_dir / "decision_engine"
@@ -26,12 +28,15 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
 
     primary_file = job_dir / "primary" / "risk_arguments.jsonl"
     total_delta = 0
+    quotes = []
     if primary_file.exists():
         with open(primary_file, "r") as f:
             for line in f:
                 if line.strip():
                     item = json.loads(line)
                     total_delta += item.get("proposed_delta", 0)
+                    if not item.get("note_missing_quote"):
+                        quotes.append(item.get("quote", ""))
     
     total_delta = max(-10, min(10, total_delta))
 
@@ -69,7 +74,43 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
     with open(out_dir / "score_breakdown.json", "w") as f:
         json.dump(score_breakdown, f, indent=2)
 
-    cam_md = f"""# Credit Approval Memo (CAM)
+    enable_live_llm = payload.get("enable_live_llm", cfg.get("features", {}).get("enable_live_llm", False))
+    cam_md = ""
+
+    if enable_live_llm and os.getenv("OPENAI_API_KEY"):
+        try:
+            from providers.llm.openai_client import OpenAIClient
+            client = OpenAIClient(api_key=os.getenv("OPENAI_API_KEY"))
+            
+            prompt = f"""Generate a professional Credit Approval Memo (CAM) in Markdown format based on the following deterministic results:
+Decision: {decision}
+Limit: ₹{limit:,.2f}
+Rate: {rate:.2f}%
+Final Score: {score}
+
+Drivers:
+{json.dumps(drivers)}
+
+Quotes from Officer:
+{json.dumps(quotes)}
+
+Include sections for Decision Summary, Risk Drivers, and Artifacts Referenced. Limit to 300 words."""
+            
+            # Use json schema wrapping a markdown string
+            schema = {
+                "type": "object",
+                "properties": {"markdown": {"type": "string"}},
+                "required": ["markdown"]
+            }
+            
+            res, metrics = client.complete_json(prompt, schema, model="gpt-4o-mini", max_tokens=1000)
+            append_metrics(job_dir, "decision_narrative", metrics)
+            cam_md = res.get("markdown", "")
+        except Exception as e:
+            logger.error(f"CAM generation failed: {e}")
+
+    if not cam_md:
+        cam_md = f"""# Credit Approval Memo (CAM)
 ## Decision: {decision}
 **Limit:** ₹{limit:,.2f}  
 **Rate:** {rate:.2f}%  
@@ -77,11 +118,10 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
 
 ## Drivers
 """
-    for d in drivers:
-        cam_md += f"- {d}
-"
-        
-    cam_md += """
+        for d in drivers:
+            cam_md += f"- {d}\n"
+            
+        cam_md += """
 ## Artifacts Referenced
 - `ingestor/signals.json`
 - `research/research_findings.jsonl`

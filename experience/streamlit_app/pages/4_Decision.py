@@ -1,5 +1,6 @@
 import streamlit as st
 import json
+import requests
 from pathlib import Path
 import yaml
 
@@ -46,3 +47,16 @@ if breakdown_path.exists():
         breakdown = json.load(f)
     col2.subheader("Score Breakdown")
     col2.json(breakdown)
+
+api_url = st.session_state.get("api_url", "http://127.0.0.1:8000")
+metrics_res = requests.get(f"{api_url}/jobs/{job_id}/metrics")
+if metrics_res.status_code == 200:
+    metrics = metrics_res.json()
+    if "decision_narrative" in metrics:
+        st.subheader("CAM LLM Metrics")
+        st.json(metrics["decision_narrative"])
+        
+prov_res = requests.get(f"{api_url}/jobs/{job_id}/provenance")
+if prov_res.status_code == 200:
+    st.subheader("Provenance / Timings")
+    st.json(prov_res.json().get("timing", {}))

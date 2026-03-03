@@ -1,6 +1,7 @@
 import streamlit as st
 import json
 import pandas as pd
+import requests
 from pathlib import Path
 import yaml
 
@@ -28,7 +29,7 @@ if not primary_dir.exists():
 
 args_path = primary_dir / "risk_arguments.jsonl"
 if args_path.exists():
-    st.subheader("Risk Arguments")
+    st.subheader("Risk Arguments (LLM Extracted)")
     args = []
     with open(args_path, "r") as f:
         for line in f:
@@ -36,7 +37,10 @@ if args_path.exists():
             
     if args:
         df = pd.DataFrame(args)
-        st.dataframe(df[['quote', 'five_c', 'proposed_delta']])
+        disp_cols = ['quote', 'five_c', 'proposed_delta', 'note_missing_quote']
+        if 'contradicts' in df.columns:
+            disp_cols.append('contradicts')
+        st.dataframe(df[[c for c in disp_cols if c in df.columns]])
     else:
         st.write("No arguments extracted.")
 
@@ -46,3 +50,14 @@ if impact_path.exists():
         impact = json.load(f)
     st.subheader("Impact Report")
     st.json(impact)
+
+api_url = st.session_state.get("api_url", "http://127.0.0.1:8000")
+metrics_res = requests.get(f"{api_url}/jobs/{job_id}/metrics")
+if metrics_res.status_code == 200:
+    metrics = metrics_res.json()
+    if "primary_reasoning" in metrics:
+        st.subheader("LLM Metrics")
+        st.json(metrics["primary_reasoning"])
+    if "primary_repair" in metrics:
+        st.warning("Schema Repair Triggered!")
+        st.json(metrics["primary_repair"])

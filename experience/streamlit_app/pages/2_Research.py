@@ -1,6 +1,7 @@
 import streamlit as st
 import json
 import pandas as pd
+import requests
 from pathlib import Path
 import yaml
 
@@ -43,5 +44,11 @@ if findings_path.exists():
         df = pd.DataFrame(findings)
         df['citation_url'] = df['citations'].apply(lambda c: c[0]['url'] if c else "")
         st.dataframe(df[['entity', 'claim', 'stance', 'citation_url']])
-    else:
-        st.write("No findings extracted.")
+
+api_url = st.session_state.get("api_url", "http://127.0.0.1:8000")
+metrics_res = requests.get(f"{api_url}/jobs/{job_id}/metrics")
+if metrics_res.status_code == 200:
+    metrics = metrics_res.json()
+    if "research" in metrics:
+        st.subheader("Metrics")
+        st.json(metrics["research"])

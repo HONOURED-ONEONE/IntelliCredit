@@ -14,3 +14,25 @@ mock_paths:
   bank_uc_csv: "mock_dbx/uc/bank_transactions_sample.csv"
 contracts:
   strict: true
+llm:
+  provider_preferred: "openai"
+  model_map:
+    vision: "gpt-4o"
+    json_repair: "gpt-4o-mini"
+    reasoning_primary: "claude-3-7-sonnet-2025-10-22"
+  timeouts_sec:
+    short: 20
+    medium: 60
+  retries: 2
+  max_tokens:
+    vision: 2000
+    reasoning: 3000
+    repair: 1500
+  enable_cache: true
+search:
+  provider: "mock"
+  perplexity:
+    freshness_days: 365
+features:
+  enable_live_llm: false
+  enable_live_search: false

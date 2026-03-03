@@ -11,6 +11,11 @@ class JobPayload(BaseModel):
     provider_mode: Optional[Literal["mock", "local_uploads"]] = None
     use_mock_uc: Optional[bool] = None
     use_mock_pdfs: Optional[bool] = None
+    enable_live_llm: Optional[bool] = False
+    enable_live_search: Optional[bool] = False
+    llm_provider: Optional[str] = None
+    vision_model: Optional[str] = None
+    reasoning_model: Optional[str] = None
 
 class JobResponse(BaseModel):
     """Response when a job is created."""

@@ -15,14 +15,16 @@ provider_mode = st.session_state.get("provider_mode", "mock")
 with st.form("job_form"):
     company_name = st.text_input("Company Name", "Sample Company")
     promoter = st.text_input("Promoter Name", "John Doe")
-    notes = st.text_area("Officer Notes (Include a quote in \"\" for primary insights)", 'The client has a "strong" track record.')
+    notes = st.text_area("Officer Notes", 'The client has a "strong" track record but there was a recent "fraud" mention.')
     
     gst_file = None
     bank_file = None
+    pdf_file = None
     if provider_mode == "local_uploads":
         st.subheader("Upload Inputs")
         gst_file = st.file_uploader("GST Returns CSV", type=["csv"])
         bank_file = st.file_uploader("Bank Transactions CSV", type=["csv"])
+        pdf_file = st.file_uploader("Financial Docs PDF", type=["pdf"])
         
     start_button = st.form_submit_button("Start Job")
 
@@ -32,6 +34,8 @@ if start_button:
         "promoter": promoter,
         "notes": notes,
         "provider_mode": provider_mode,
+        "enable_live_llm": st.session_state.get("enable_live_llm", False),
+        "enable_live_search": st.session_state.get("enable_live_search", False),
         "source": "streamlit"
     }
     
@@ -60,6 +64,11 @@ if start_button:
             if bank_file:
                 with open(inputs_dir / "bank_transactions.csv", "wb") as f:
                     f.write(bank_file.getbuffer())
+            if pdf_file:
+                pdf_dir = inputs_dir / "pdfs"
+                pdf_dir.mkdir(exist_ok=True)
+                with open(pdf_dir / "uploaded.pdf", "wb") as f:
+                    f.write(pdf_file.getbuffer())
                     
     except Exception as e:
         st.error(f"Failed to start job: {e}")
@@ -70,8 +79,7 @@ if "current_job_id" in st.session_state:
     
     status_ph = st.empty()
     
-    completed = False
-    for _ in range(15):
+    for _ in range(30): # longer wait for live LLM
         try:
             s_res = requests.get(f"{api_url}/jobs/{job_id}")
             if s_res.status_code == 200:
@@ -79,7 +87,6 @@ if "current_job_id" in st.session_state:
                 status_ph.info(f"**Current Stage:** {stage}")
                 if stage == "completed":
                     status_ph.success("**Job Completed!**")
-                    completed = True
                     break
         except requests.exceptions.RequestException:
             pass
@@ -105,11 +112,6 @@ if "current_job_id" in st.session_state:
             df_gst = pd.read_csv(gst_path)
             st.write("GST Returns (Top 10)")
             st.dataframe(df_gst.head(10))
-            
-        if bank_path.exists():
-            df_bank = pd.read_csv(bank_path)
-            st.write("Bank Transactions (Top 10)")
-            st.dataframe(df_bank.head(10))
 
         facts_path = ingestor_dir / "facts.jsonl"
         if facts_path.exists():
@@ -119,11 +121,5 @@ if "current_job_id" in st.session_state:
                     if line.strip(): facts.append(json.loads(line))
             if facts:
                 df_facts = pd.DataFrame(facts)
-                st.write("Extracted Facts")
+                st.write("Extracted Facts (Includes Vision LLM if enabled)")
                 st.dataframe(df_facts)
-                
-                if not df_facts.empty and 'field' in df_facts.columns and 'value' in df_facts.columns:
-                    chart = alt.Chart(df_facts).mark_bar().encode(
-                        x='field', y='value', color='field'
-                    ).properties(width=500, height=300)
-                    st.altair_chart(chart)

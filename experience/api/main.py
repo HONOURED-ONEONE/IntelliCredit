@@ -5,14 +5,13 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
 import sys
 
-# Ensure project root is in path
 project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(project_root))
 
 from orchestration.job_runner import run_job_async, load_config
 from experience.api.schemas import JobPayload, JobResponse, JobStatusResponse, JobResultsResponse, FileInfo
 
-app = FastAPI(title="IntelliCredit API Phase 2")
+app = FastAPI(title="IntelliCredit API Phase 3")
 
 app.add_middleware(
     CORSMiddleware,
@@ -24,14 +23,12 @@ app.add_middleware(
 
 @app.post("/jobs", response_model=JobResponse)
 async def create_job(payload: JobPayload, background_tasks: BackgroundTasks):
-    """Create a new job and run it in the background."""
     job_id = str(uuid.uuid4())
     background_tasks.add_task(run_job_async, job_id, payload.model_dump())
     return JobResponse(job_id=job_id)
 
 @app.get("/jobs/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(job_id: str):
-    """Get the current status of a job."""
     config = load_config()
     output_root = config.get("paths", {}).get("output_root", "outputs/jobs")
     status_file = project_root / output_root / job_id / "status.json"
@@ -44,9 +41,32 @@ async def get_job_status(job_id: str):
         
     return JobStatusResponse(**status_data)
 
+@app.get("/jobs/{job_id}/metrics")
+async def get_job_metrics(job_id: str):
+    config = load_config()
+    output_root = config.get("paths", {}).get("output_root", "outputs/jobs")
+    metrics_file = project_root / output_root / job_id / "metrics.json"
+    
+    if not metrics_file.exists():
+        return {}
+        
+    with open(metrics_file, "r") as f:
+        return json.load(f)
+
+@app.get("/jobs/{job_id}/provenance")
+async def get_job_provenance(job_id: str):
+    config = load_config()
+    output_root = config.get("paths", {}).get("output_root", "outputs/jobs")
+    prov_file = project_root / output_root / job_id / "provenance.json"
+    
+    if not prov_file.exists():
+        return {}
+        
+    with open(prov_file, "r") as f:
+        return json.load(f)
+
 @app.get("/results/{job_id}", response_model=JobResultsResponse)
 async def get_job_results(job_id: str, subdir: str = Query(None)):
-    """List all artifacts for a given job. Optional subdir to filter."""
     config = load_config()
     output_root = config.get("paths", {}).get("output_root", "outputs/jobs")
     base_dir = project_root / output_root / job_id
