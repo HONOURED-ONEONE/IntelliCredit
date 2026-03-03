@@ -59,6 +59,19 @@ def build_evidence_pack(job_dir: Path, cfg: dict):
             "contract": "primary"
         })
         
+        quote_links_path = job_dir / "primary" / "quote_links.jsonl"
+        if quote_links_path.exists():
+            import shutil
+            dest_links = primary_dir / "quote_links.jsonl"
+            shutil.copy(quote_links_path, dest_links)
+            manifest.append({
+                "path": "primary/quote_links.jsonl",
+                "bytes": dest_links.stat().st_size,
+                "sha256": sha256_of_file(dest_links),
+                "source_artifact": "quote_links.jsonl",
+                "contract": "primary"
+            })
+        
     # 2. Web citations
     research_path = job_dir / "research" / "research_findings.jsonl"
     if research_path.exists():

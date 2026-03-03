@@ -11,10 +11,12 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
 
     signals_file = job_dir / "ingestor" / "signals.json"
     mismatch = False
+    mismatch_val = 0.0
     if signals_file.exists():
         with open(signals_file, "r") as f:
             signals = json.load(f)
             mismatch = signals.get("mismatch", False)
+            mismatch_val = signals.get("mismatch_value", 0.0)
 
     research_file = job_dir / "research" / "research_findings.jsonl"
     adverse_count = 0
@@ -27,35 +29,63 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
                         adverse_count += 1
 
     primary_file = job_dir / "primary" / "risk_arguments.jsonl"
-    total_delta = 0
     quotes = []
     if primary_file.exists():
         with open(primary_file, "r") as f:
             for line in f:
                 if line.strip():
                     item = json.loads(line)
-                    total_delta += item.get("proposed_delta", 0)
                     if not item.get("note_missing_quote"):
                         quotes.append(item.get("quote", ""))
-    
-    total_delta = max(-10, min(10, total_delta))
+                        
+    impact_report_file = job_dir / "primary" / "impact_report.json"
+    total_delta = 0
+    if impact_report_file.exists():
+        with open(impact_report_file, "r") as f:
+            impact = json.load(f)
+            total_delta = impact.get("weighted_total_delta", impact.get("total_delta", 0))
 
-    score = 60
+    dec_cfg = cfg.get("decision", {})
+    base_score = dec_cfg.get("base_score", 60)
+    adj_cfg = dec_cfg.get("adjustments", {})
+    pricing_cfg = dec_cfg.get("pricing", {})
+    
+    cap = adj_cfg.get("primary_delta_cap", 10)
+    total_delta = max(-cap, min(cap, total_delta))
+
+    score = base_score
     drivers = []
 
     if mismatch:
-        score -= 10
-        drivers.append("GST vs Bank mismatch detected (-10)")
+        penalty = adj_cfg.get("gst_bank_mismatch", -10)
+        score += penalty
+        drivers.append(f"GST vs Bank mismatch detected (magnitude: {mismatch_val:,.2f}) ({penalty})")
     if adverse_count > 0:
-        score -= 15
-        drivers.append(f"Adverse media mentions: {adverse_count} (-15)")
+        penalty = adverse_count * adj_cfg.get("adverse_per_item", -15)
+        score += penalty
+        drivers.append(f"Adverse media mentions: {adverse_count} ({penalty})")
     if total_delta != 0:
         score += total_delta
         drivers.append(f"Officer notes impact ({total_delta:+d})")
 
-    limit = max(500000.0, min(5000000.0, score * 25000.0))
-    rate = max(9.0, min(16.0, 16.0 - (score - 50) * 0.1))
+    min_limit = pricing_cfg.get("min_limit", 500000.0)
+    max_limit = pricing_cfg.get("max_limit", 5000000.0)
+    k_limit = pricing_cfg.get("k_limit", 25000.0)
+    
+    min_rate = pricing_cfg.get("min_rate", 9.0)
+    max_rate = pricing_cfg.get("max_rate", 16.0)
+    slope = pricing_cfg.get("slope_per_score", 0.1)
+
+    limit = max(min_limit, min(max_limit, score * k_limit))
+    rate = max(min_rate, min(max_rate, max_rate - (score - 50) * slope))
     decision = "Approved" if score >= 40 else "Rejected"
+
+    from governance.guardrails.policies import apply_gates
+    gate_res = apply_gates(job_dir, cfg)
+    if gate_res.get("action") != "ALLOW":
+        decision = "REFER"
+        for r in gate_res.get("reasons", []):
+            drivers.append(f"Gate Triggered: {r}")
 
     out_json = {
         "decision": decision,
@@ -67,7 +97,7 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
         json.dump(out_json, f, indent=2)
 
     score_breakdown = {
-        "base_score": 60,
+        "base_score": base_score,
         "final_score": score,
         "adjustments": drivers
     }

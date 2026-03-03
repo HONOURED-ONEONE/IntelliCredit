@@ -183,6 +183,13 @@ def validate_primary(job_dir: Path) -> dict:
         if not (-10 <= delta <= 10):
             _add_issue(report, stage, "CRITICAL", "DELTA_OUT_OF_RANGE", f"Proposed delta out of range: {delta}", str(insights_path))
             
+        fw = ins.get("freshness_weight")
+        if fw is not None and not (0 <= fw <= 1.5):
+            _add_issue(report, stage, "WARN", "FRESHNESS_OUT_OF_RANGE", f"Freshness weight out of range: {fw}", str(insights_path))
+            
+        if ins.get("note_missing_quote", False) and delta != 0:
+            _add_issue(report, stage, "INFO", "DELTA_WITH_MISSING_QUOTE", "Proposed delta != 0 but missing quote flag is set", str(insights_path))
+            
     _write_report(job_dir, stage, report)
     return report
 

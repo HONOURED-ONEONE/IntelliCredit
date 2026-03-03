@@ -19,6 +19,17 @@ Welcome to the IntelliCredit MVP. This system automates deterministic and LLM-as
 
 - **Evidence Page Images**: Set `governance.evidence.store_page_images: true` in `config/base.yaml` to export low-res JPEG snapshots of processed PDF pages into `evidence_pack/docs/pages/`. Hashes for these images are appended to `evidence_manifest.json`.
 
+## Primary Guardrails
+
+- **Contradiction Detection**: Semantic heuristics detect if two extracted arguments from officer notes contradict each other (opposing polarity or significant delta differences on the same 5C dimension). Results are stored in `primary/contradictions.json`.
+- **Freshness Decay**: If `visit_date` is supplied, the `proposed_delta` of arguments degrades using a 90-day half-life curve. Modifiers are logged to `impact_report.json` and `weights.json` leaving the core contract unmutated.
+- **Quote Linking**: LLM-extracted quotes from officer notes are fuzzily linked back to the ingested PDF pages via the `documents.jsonl` artifact, creating a direct lineage in `primary/quote_links.jsonl` which is appended to the evidence pack.
+
+## Decision Policy & Pricing
+
+- **YAML-Driven Pricing**: The Decision Engine derives its scoring model, threshold values, and pricing curves directly from `config/base.yaml` via the `decision:` block, rather than hardcoded logic.
+- **Backward Compatible**: The provided default configuration perfectly reproduces the legacy deterministic logic.
+- **Inline Policy Gates**: Any `CRITICAL` issues in upstream validation reports automatically trigger a `REFER` action inside the engine and append the block reason directly to the CAM narrative drivers.
 ### OCR & Cleanup (Optional)
 Extraction hardening includes optional graceful OCR fallback and light image cleanup.
 To use OCR, install the optional dependencies (`pytesseract`, `opencv-python`) and system dependency `tesseract`.

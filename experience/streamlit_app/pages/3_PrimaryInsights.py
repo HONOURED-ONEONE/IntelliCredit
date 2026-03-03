@@ -51,6 +51,26 @@ if impact_path.exists():
     st.subheader("Impact Report")
     st.json(impact)
 
+contradictions_path = primary_dir / "contradictions.json"
+quote_links_path = primary_dir / "quote_links.jsonl"
+
+if contradictions_path.exists() or quote_links_path.exists():
+    with st.expander("Guardrails & Heuristics (Sidecars)"):
+        if contradictions_path.exists():
+            with open(contradictions_path, "r") as f:
+                contra = json.load(f)
+            st.write(f"**Contradictions Detected:** {len(contra.get('pairs', []))}")
+            st.json(contra)
+            
+        if quote_links_path.exists():
+            links = []
+            with open(quote_links_path, "r") as f:
+                for line in f:
+                    if line.strip(): links.append(json.loads(line))
+            st.write(f"**Quote Links:** {len(links)}")
+            if links:
+                st.dataframe(pd.DataFrame(links))
+
 api_url = st.session_state.get("api_url", "http://127.0.0.1:8000")
 
 val_res = requests.get(f"{api_url}/jobs/{job_id}/validation?stage=primary")
