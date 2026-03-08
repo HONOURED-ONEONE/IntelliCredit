@@ -210,6 +210,44 @@ def validate_research(job_dir: Path) -> dict:
                 
             if not cit.get("date"):
                 _add_issue(report, stage, "WARN", "MISSING_DATE", f"Missing date in citation", str(findings_path))
+
+    sec_res_dir = job_dir / "secondary_research"
+    fused_path = sec_res_dir / "fused_results.jsonl"
+    if fused_path.exists():
+        fused_results = read_jsonl(fused_path)
+        for r in fused_results:
+            if not r.get("url"):
+                _add_issue(report, stage, "CRITICAL", "MISSING_URL", "Missing URL in fused results", str(fused_path))
+            if not r.get("providers_hit"):
+                _add_issue(report, stage, "CRITICAL", "MISSING_PROVIDERS", "Missing providers_hit in fused results", str(fused_path))
+            if "rrf_score" not in r or not isinstance(r["rrf_score"], float) or r["rrf_score"] < 0:
+                _add_issue(report, stage, "CRITICAL", "INVALID_RRF_SCORE", "Invalid or missing rrf_score", str(fused_path))
+            if not isinstance(r.get("rank_by_provider"), dict):
+                _add_issue(report, stage, "CRITICAL", "INVALID_RANK_BY_PROVIDER", "rank_by_provider must be dict", str(fused_path))
+                
+    report_path = sec_res_dir / "fusion_report.json"
+    if report_path.exists():
+        try:
+            with open(report_path, "r") as f:
+                fusion_reports = json.load(f)
+                for q_hash, frep in fusion_reports.items():
+                    successes = len(frep.get("successes", []))
+                    failures = len(frep.get("failures", [])) + len(frep.get("timeouts", []))
+                    if successes < 2:
+                        _add_issue(report, stage, "WARN", "DEGRADED_COVERAGE", f"Only {successes} providers succeeded for query", str(report_path))
+                    elif failures > 0:
+                        _add_issue(report, stage, "WARN", "PARTIAL_FAILURE", f"{failures} providers failed or timed out", str(report_path))
+        except Exception: pass
+        
+    risk_path = sec_res_dir / "risk_escalation.json"
+    if risk_path.exists():
+        try:
+            with open(risk_path, "r") as f:
+                risk_reports = json.load(f)
+                for q_hash, rrep in risk_reports.items():
+                    if rrep.get("triggered"):
+                        _add_issue(report, stage, "INFO", "RISK_ESCALATION_TRIGGERED", f"Risk escalation triggered (score {rrep.get('initial_score')} >= {rrep.get('threshold')})", str(risk_path))
+        except Exception: pass
                 
     _write_report(job_dir, stage, report)
     return report

@@ -82,6 +82,19 @@ def finish_run(job_dir: Path, status: str):
     with open(prov_file, "w", encoding="utf-8") as f:
         json.dump(prov, f, indent=2)
 
+def append_search_provenance(job_dir: Path, data: dict):
+    prov_file = job_dir / "provenance.json"
+    if not prov_file.exists():
+        return
+        
+    with open(prov_file, "r", encoding="utf-8") as f:
+        prov = json.load(f)
+        
+    prov["search_ensemble"] = data
+    
+    with open(prov_file, "w", encoding="utf-8") as f:
+        json.dump(prov, f, indent=2)
+
 def append_metrics(job_dir: Path, namespace: str, metrics: dict):
     metrics_file = job_dir / "metrics.json"
     data = {}
