@@ -1,3 +1,4 @@
+# experience/streamlit_app/Home.py
 import os
 import requests
 import streamlit as st
@@ -5,18 +6,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ----------------------------
-# Page config
-# ----------------------------
 st.set_page_config(
-    page_title="IntelliCredit - MVP",
+    page_title="IntelliCredit • Overview",
     page_icon="🏦",
     layout="wide"
 )
 
-# ----------------------------
-# Helper: get API URL
-# ----------------------------
+# ---- helpers ----
 def _default_api_url() -> str:
     host = os.getenv("API_HOST", "127.0.0.1")
     port = os.getenv("API_PORT", "8000")
@@ -27,80 +23,168 @@ if "api_url" not in st.session_state:
 
 api_url = st.session_state["api_url"]
 
-# ----------------------------
-# Header
-# ----------------------------
-st.title("IntelliCredit MVP")
+# ---- hero ----
+st.title("IntelliCredit — Automated Credit Analysis (MVP)")
 st.markdown(
     """
-Welcome to the IntelliCredit MVP.  
-Use the **Settings** page to configure API keys and live features. Then proceed to **Ingest**, **Research**, **Primary Insights**, and **Decision** to run end‑to‑end jobs.
+**Deterministic + LLM‑assisted** credit assessments with full **validation, provenance,
+and evidence packaging** — designed for Indian financial workflows.
 """
 )
 
-# ----------------------------
-# API Endpoint (editable)
-# ----------------------------
-with st.expander("Connection"):
+# ---- connection / readiness (light) ----
+with st.expander("Connection & Readiness", expanded=True):
     st.text_input("API URL", value=api_url, key="api_url")
-    st.caption("Tip: this persists for the current session. The default comes from `API_HOST` and `API_PORT`.")
-
-# ----------------------------
-# Backend readiness
-# ----------------------------
-col1, col2 = st.columns([1, 2], gap="large")
-with col1:
-    st.subheader("Backend Status")
-
+    cols = st.columns(3)
     try:
         r = requests.get(f"{st.session_state['api_url']}/health/ready", timeout=3)
         if r.status_code == 200:
-            st.success("Backend: Ready 🟢")
             ready = r.json()
-            write_ok = ready.get("write_access", False)
-            st.write(f"- Write access: **{'OK' if write_ok else 'Not available'}**")
+            cols[0].success("Backend: Ready 🟢")
+            cols[1].write(f"Write access: **{'OK' if ready.get('write_access') else 'Not available'}**")
             llm = ready.get("llm_live", {})
             search = ready.get("search_live", {})
-            dbx = ready.get("databricks_live", {})
-
-            st.write(f"- Live LLM: **{'OK' if llm.get('ok') or llm.get('skipped') else 'Missing keys'}**")
-            st.write(f"- Live Search: **{'OK' if search.get('ok') or search.get('skipped') else 'Missing keys'}**")
-            st.write(f"- Databricks: **{'OK' if dbx.get('ok') or dbx.get('skipped') else 'Missing creds'}**")
+            cols[2].write(
+                f"Live: LLM **{'OK' if llm.get('ok') or llm.get('skipped') else '—'}**, "
+                f"Search **{'OK' if search.get('ok') or search.get('skipped') else '—'}**"
+            )
         else:
-            st.error(f"Backend: Not Ready 🔴 (HTTP {r.status_code})")
+            cols[0].error(f"Not Ready 🔴 (HTTP {r.status_code})")
     except Exception as e:
-        st.error(f"Backend: Disconnected 🔴 ({e})")
+        cols[0].error(f"Disconnected 🔴 ({e})")
 
-with col2:
-    st.subheader("Quick Links")
-    st.markdown(
-        """
-- **Settings** → Configure keys & live features
-- **1. Ingest Data & Start Job** → Upload CSVs/PDFs or point to Databricks
-- **2. Secondary Research** → View research findings & validation
-- **3. Primary Insights** → Add officer notes and view arguments
-- **4. Decision Engine** → CAM, decision output, and scores
-- **5. Validation & Provenance** → Cross-stage validation, metrics, evidence
-        """
+st.markdown("---")
+
+# ---- mini-presentation: Architecture ----
+left, right = st.columns([1, 1], gap="large")
+
+with left:
+    st.subheader("System Architecture (MVP)")
+
+    st.code(
+        r"""
++-------------------+        +-------------------+        +-------------------+
+|   Streamlit App   |  --->  |   FastAPI (API)   |  --->  |  Orchestration    |
+|  (Front-end UX)   |        |  Health/Results   |        |  Job Runner,      |
+|    Pages 1..5     |        |  Uploads, Metrics |        |  Stages, Idempot. |
++-------------------+        +-------------------+        +-------------------+
+                                                                |
+                                                                v
+    +------------------- Pipeline (Stages) -------------------------------+
+    | 1) Ingestor  | 2) Research  | 3) Primary Insights | 4) Decision    |
+    |  - CSV/PDF   |  - Web/Ensm. |  - Quote-first LLM  |  - Deterministic|
+    |  - OCR/Vision|  - Citations |  - Guardrails       |  - Policy Matrix|
+    +---------------------------------------------------------------------+
+                                                                |
+                                                                v
+    +----------------- Governance & Evidence ---------------------------+
+    | Validation (per stage & aggregate), Provenance, Metrics, Evidence |
+    +-------------------------------------------------------------------+
+
+Storage: outputs/jobs/{job_id}/... (artifacts, reports, CAM, evidence_pack)
+        """,
+        language="text",
     )
 
-    st.divider()
-    st.subheader("Shortcuts")
-    cols = st.columns(3)
-    cols[0].page_link("pages/0_Settings.py", label="⚙️ Settings", icon="⚙️")
-    cols[1].page_link("pages/1_Ingest.py", label="📥 Ingest", icon="📥")
-    cols[2].page_link("pages/2_Research.py", label="🔎 Research", icon="🔎")
+with right:
+    st.subheader("Key Building Blocks")
+    st.markdown(
+        """
+- **Streamlit App**: Operator UX for starting jobs, uploading files, browsing artifacts.
+- **FastAPI**: Health checks, uploads, job status, validation/evidence endpoints.
+- **Orchestration**: Async job runner with per‑stage idempotency & schema tagging.
+- **Stages**:
+  - **Ingestor**: 
+    - Reads GST/Bank CSVs; parses PDFs (pdfplumber), optional OCR (Tesseract),
+      optional Vision LLM extraction. Emits `facts.jsonl`, `signals.json`.
+  - **Research**:
+    - Live/metasearch (Perplexity/Tavily/SerpAPI Mock) with **RRF fusion**;
+      outputs `research_findings.jsonl` + sidecars.
+  - **Primary Insights**:
+    - Quote‑first extraction via Anthropics/OpenAI (if enabled) with repair and
+      guardrails (contradictions, quote‑links).
+  - **Decision**:
+    - Deterministic scoring + policy matrix; renders **CAM** (`.md`, `.docx`, `.pdf`).
+- **Governance**:
+  - Stage validations, aggregate validation, metrics, provenance, evidence pack.
+"""
+    )
 
-    cols2 = st.columns(3)
-    cols2[0].page_link("pages/3_PrimaryInsights.py", label="💡 Primary Insights", icon="💡")
-    cols2[1].page_link("pages/4_Decision.py", label="⚖️ Decision", icon="⚖️")
-    cols2[2].page_link("pages/5_Validation_Provenance.py", label="🛡️ Validation & Provenance", icon="🛡️")
+st.markdown("---")
 
-# ----------------------------
-# Footer / tips
-# ----------------------------
+# ---- functional view ----
+st.subheader("Functional Modules")
+
+c1, c2, c3 = st.columns(3, gap="large")
+
+with c1:
+    st.markdown("### 1) Ingestor")
+    st.write(
+        "- Inputs: GST returns, Bank statements, PDFs\n"
+        "- Extracts totals & facts; optional OCR & Vision\n"
+        "- **Artifacts**: `ingestor/facts.jsonl`, `ingestor/signals.json`"
+    )
+
+with c2:
+    st.markdown("### 2) Research")
+    st.write(
+        "- Providers: Perplexity, Tavily, SerpAPI, Mock\n"
+        "- **Ensemble fusion (RRF)** & risk escalation\n"
+        "- **Artifacts**: `research/research_findings.jsonl`, `secondary_research/*`"
+    )
+
+with c3:
+    st.markdown("### 3) Primary Insights")
+    st.write(
+        "- Officer notes → quote‑first arguments\n"
+        "- Freshness decay, contradictions, quote‑links\n"
+        "- **Artifacts**: `primary/risk_arguments.jsonl`, `impact_report.json`"
+    )
+
+c4, c5 = st.columns(2, gap="large")
+
+with c4:
+    st.markdown("### 4) Decision")
+    st.write(
+        "- Deterministic score + policy matrix REFERS on risk\n"
+        "- **Artifacts**: `decision_engine/decision_output.json`, `cam.md/.docx/.pdf`"
+    )
+
+with c5:
+    st.markdown("### 5) Governance")
+    st.write(
+        "- Per‑stage & aggregate validation; provenance & metrics\n"
+        "- Evidence pack (citations, snippets, page images)\n"
+        "- **Artifacts**: `*_validation_report.json`, `validation_aggregate.json`, `evidence_pack/*`"
+    )
+
+st.markdown("---")
+
+# ---- how to run ----
+st.subheader("How It Runs")
+st.markdown(
+    """
+1. **Local Mock**: No keys required. Uses bundled CSVs/PDFs and mock research.
+2. **Local Uploads**: Upload your PDFs/CSVs via **Ingest**; pipeline runs end‑to‑end.
+3. **Databricks** *(optional)*: Pull files/tables from DBFS/UC when live integration is enabled.
+4. **Live Providers** *(optional)*: LLMs (OpenAI/Anthropic), Search (Perplexity/Tavily/SerpAPI).
+"""
+)
+
+# ---- quick navigation ----
+st.subheader("Navigate")
+cols = st.columns(3)
+cols[0].page_link("pages/1_Ingest.py", label="📥 Ingest", icon="📥")
+cols[1].page_link("pages/2_Research.py", label="🔎 Research", icon="🔎")
+cols[2].page_link("pages/3_PrimaryInsights.py", label="💡 Primary Insights", icon="💡")
+
+cols2 = st.columns(3)
+cols2[0].page_link("pages/4_Decision.py", label="⚖️ Decision", icon="⚖️")
+cols2[1].page_link("pages/5_Validation_Provenance.py", label="🛡️ Validation & Provenance", icon="🛡️")
+cols2[2].page_link("pages/06_Settings.py", label="🩺 Health Only", icon="🩺")
+
 st.markdown("---")
 st.caption(
-    "Tip: Start in **Settings** to enable live providers (OpenAI/Anthropic/Search/Databricks). "
-    "All keys are session‑scoped; store them securely in your deployment environment for production."
+    "Tip: For production, set environment variables on the server (API keys, feature flags). "
+    "This Home page is a presentation; health checks live in **Settings → Health Only**."
 )
