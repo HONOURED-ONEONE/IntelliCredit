@@ -21,7 +21,10 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
             from providers.llm.repair import repair_json
             
             client = AnthropicClient(api_key=os.getenv("ANTHROPIC_API_KEY"))
-            reasoning_model = payload.get("reasoning_model") or cfg.get("llm", {}).get("model_map", {}).get("reasoning_primary", "claude-3-7-sonnet-2025-10-22")
+            reasoning_model = payload.get("reasoning_model") or cfg.get("llm", {}).get("model_map", {}).get("reasoning_primary", "claude-sonnet-4-6")
+            
+            enable_cache = payload.get("enable_cache", cfg.get("llm", {}).get("enable_cache", True))
+            thinking_cfg = cfg.get("llm", {}).get("anthropic", {}).get("thinking", {"type": "adaptive"})
             
             schema = {
                 "type": "object",
@@ -49,7 +52,7 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
             
             prompt = f"Analyze these officer notes and extract risk arguments strictly based on explicit quotes. If there's no quote in the notes, note_missing_quote must be true and propose 0 delta. Match the observation to one of the 5Cs.\n\nNotes:\n{notes}"
             
-            parsed, metrics = client.complete_json(prompt, schema, model=reasoning_model)
+            parsed, metrics = client.complete_json(prompt, schema, model=reasoning_model, enable_cache=enable_cache, thinking=thinking_cfg)
             append_metrics(job_dir, "primary_reasoning", metrics)
             
             # Simple check: if arguments list is missing, we might need repair

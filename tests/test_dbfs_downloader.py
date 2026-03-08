@@ -20,12 +20,16 @@ def test_dbfs_downloader_mock(tmp_path):
 
 def test_dbfs_downloader_live(tmp_path):
     cfg = {}
-    with patch("os.getenv", return_value="dummy"):
+    def mock_getenv(key, default=None):
+        if key in ["DATABRICKS_HOST", "DATABRICKS_TOKEN", "DATABRICKS_HTTP_PATH"]:
+            return "dummy"
+        return default
+    with patch("os.getenv", side_effect=mock_getenv):
         with patch("databricks.sdk.WorkspaceClient"):
             provider = DatabricksConnector(cfg)
     
     mock_reader = MagicMock()
-    mock_reader.read.return_value = b"live content"
+    mock_reader.read.side_effect = [b"live content", b""]
     
     mock_ctx = MagicMock()
     mock_ctx.__enter__.return_value = mock_reader

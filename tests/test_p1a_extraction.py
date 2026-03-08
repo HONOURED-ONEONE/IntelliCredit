@@ -40,8 +40,7 @@ def test_validate_ingestor_normalization(tmp_path):
     facts_path = ingestor_dir / "facts.jsonl"
     with open(facts_path, "w") as f:
         for fact in facts:
-            f.write(json.dumps(fact) + "
-")
+            f.write(json.dumps(fact) + "\n")
             
     # Write empty signals.json
     with open(ingestor_dir / "signals.json", "w") as f:
@@ -72,8 +71,7 @@ def test_evidence_anchors(tmp_path):
     facts_path = ingestor_dir / "facts.jsonl"
     with open(facts_path, "w") as f:
         for fact in facts:
-            f.write(json.dumps(fact) + "
-")
+            f.write(json.dumps(fact) + "\n")
 
     build_evidence_pack(job_dir, {})
     
