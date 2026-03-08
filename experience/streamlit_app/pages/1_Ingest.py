@@ -15,8 +15,8 @@ api_url = st.session_state.get("api_url", "http://127.0.0.1:8000")
 provider_mode = st.session_state.get("provider_mode", "mock")
 
 with st.form("job_form"):
-    company_name = st.text_input("Company Name", "Sample Company")
-    promoter = st.text_input("Promoter Name", "John Doe")
+    company_name = st.text_input("Company Name", "")
+    promoter = st.text_input("Promoter Name", "")
 
     gst_file = None
     bank_file = None
