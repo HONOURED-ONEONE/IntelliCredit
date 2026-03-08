@@ -76,8 +76,8 @@ async def health_ready():
         },
         "search_live": {
             "skipped": not config.get("features", {}).get("enable_live_search", False),
-            "ok": bool(os.getenv("PPLX_API_KEY") or os.getenv("TAVILY_API_KEY") or os.getenv("BING_SUBSCRIPTION_KEY")),
-            "reason": "Missing Search keys" if not bool(os.getenv("PPLX_API_KEY") or os.getenv("TAVILY_API_KEY") or os.getenv("BING_SUBSCRIPTION_KEY")) else "OK"
+            "ok": bool(os.getenv("PPLX_API_KEY") or os.getenv("TAVILY_API_KEY") or os.getenv("BING_SUBSCRIPTION_KEY") or os.getenv("SERPAPI_API_KEY")),
+            "reason": "Missing Search keys" if not bool(os.getenv("PPLX_API_KEY") or os.getenv("TAVILY_API_KEY") or os.getenv("BING_SUBSCRIPTION_KEY") or os.getenv("SERPAPI_API_KEY")) else "OK"
         },
         "databricks_live": {
             "skipped": not config.get("features", {}).get("enable_live_databricks", False),

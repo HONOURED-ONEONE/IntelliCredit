@@ -14,6 +14,7 @@ Welcome to the IntelliCredit MVP. This system automates deterministic and LLM-as
 
 - **Improved Disambiguation**: Research now employs Jaccard token similarity for fuzzy matching canonical names and aliases. Entity profiles are generated in `research/entities/profile.json` with an `entity_confidence` score (0.6-1.0 range).
 - **Perplexity Integration**: When using the Perplexity provider (via `PPLX_API_KEY`), the results are now automatically parsed into structured citations (up to 5 per query) and include heuristics for source quality rating (+20 for `.gov` or `reuters`). Citations are deduplicated based on canonical URLs.
+- **Metasearch Ensemble**: Combine results from Perplexity, Tavily, and SerpAPI via Rank Reciprocal Fusion (Strategy 2) for robust adverse media research. Requires `SERPAPI_API_KEY` along with `TAVILY_API_KEY` and `PPLX_API_KEY`.
 - **IndianKanoon Stub**: Provides a stub for synthetic legal citations. Enable via `search.legal_sources.indiankanoon.enabled: true`. Adds up to 2 legal citation links per entity and tracks `legal_hits` in the entity profile.
 
 ## Governance & Evidence

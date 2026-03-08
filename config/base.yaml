@@ -19,10 +19,7 @@ llm:
   model_map:
     vision: "gpt-4o"
     json_repair: "gpt-4o-mini"
-    reasoning_primary: "claude-sonnet-4-6"
-  anthropic:
-    thinking:
-      type: "adaptive"
+    reasoning_primary: "claude-3-7-sonnet-2025-10-22"
   timeouts_sec:
     short: 20
     medium: 60
@@ -33,43 +30,31 @@ llm:
     repair: 1500
   enable_cache: true
 search:
-  mode: "single"
-  provider: "mock"      # mock | perplexity | tavily | bing
-  providers: ["perplexity", "tavily", "bing"]
+  provider: "mock"      # mock | perplexity | tavily | bing | serpapi
+  serpapi:
+    engine: "google"
+    hl: "en"
+    gl: "in"
+    num: 10
+    safe: "off"
+  mode: "ensemble"
+  providers: ["perplexity", "tavily", "serpapi"]
+  fusion:
+    method: "rrf"
+    rrf_k: 60
   limits:
     top_k_per_provider: 5
     max_merged: 10
     risk_escalation_enabled: true
     max_merged_high_risk: 25
     top_k_per_provider_high_risk: 10
-  timeouts:
-    per_provider_s: 8
-    total_s: 12
-  fusion:
-    method: "rrf"
-    rrf_k: 60
-  dedup:
-    canonicalize: true
-  caching:
-    enabled: true
-    ttl_minutes: 60
-  risk_escalation:
-    threshold: 3
-    adverse_keywords: ["fraud","scam","arrest","SEBI","ED","CBI","NCLT","insolvency","default","money laundering","FIR","court","winding up","blacklisted","ponzi","embezzlement","bribery"]
-    legal_keywords: ["vs","v.","petition","writ","appeal","tribunal","high court","supreme court","judgment","order"]
-    domain_hints:
-      legal: [".gov.in",".nic.in","indiankanoon.org"]
-    weights:
-      adverse_hit: 1
-      legal_hit: 1
-      low_entity_confidence: 2
   perplexity:
     freshness_days: 365
   freshness_days: 365
 features:
-  enable_live_llm: true         # Phase 3
-  enable_live_search: true      # search providers
-  enable_live_databricks: true  # DBFS/UC
+  enable_live_llm: false         # Phase 3
+  enable_live_search: false      # search providers
+  enable_live_databricks: false  # DBFS/UC
 governance:
   contracts_version: "0.1.0"
   validation:
@@ -152,7 +137,7 @@ integrations:
     retries: 2
 security:
   max_request_mb: 10
-  allowed_origins: ["http://localhost:8501", "https://intellicredit-honouredone.streamlit.app"]
+  allowed_origins: ["http://localhost:8501"]
   redact_keys_in_logs: true
 
 billing:
@@ -165,7 +150,7 @@ billing:
       prompt_per_1k: 0.0
       completion_per_1k: 0.0
   anthropic:
-    claude-sonnet-4-6:
+    claude-3-7-sonnet-2025-10-22:
       prompt_per_1k: 0.0
       completion_per_1k: 0.0
   search:
