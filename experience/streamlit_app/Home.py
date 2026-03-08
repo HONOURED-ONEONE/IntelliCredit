@@ -1,6 +1,3 @@
-# experience/streamlit_app/Home.py
-import os
-import requests
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -12,17 +9,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# ---- helpers ----
-def _default_api_url() -> str:
-    host = os.getenv("API_HOST", "127.0.0.1")
-    port = os.getenv("API_PORT", "8000")
-    return f"http://{host}:{port}"
-
-if "api_url" not in st.session_state:
-    st.session_state["api_url"] = _default_api_url()
-
-api_url = st.session_state["api_url"]
-
 # ---- hero ----
 st.title("IntelliCredit — Automated Credit Analysis (MVP)")
 st.markdown(
@@ -31,29 +17,6 @@ st.markdown(
 and evidence packaging** — designed for Indian financial workflows.
 """
 )
-
-# ---- connection / readiness (light) ----
-with st.expander("Connection & Readiness", expanded=True):
-    st.text_input("API URL", value=api_url, key="api_url")
-    cols = st.columns(3)
-    try:
-        r = requests.get(f"{st.session_state['api_url']}/health/ready", timeout=3)
-        if r.status_code == 200:
-            ready = r.json()
-            cols[0].success("Backend: Ready 🟢")
-            cols[1].write(f"Write access: **{'OK' if ready.get('write_access') else 'Not available'}**")
-            llm = ready.get("llm_live", {})
-            search = ready.get("search_live", {})
-            cols[2].write(
-                f"Live: LLM **{'OK' if llm.get('ok') or llm.get('skipped') else '—'}**, "
-                f"Search **{'OK' if search.get('ok') or search.get('skipped') else '—'}**"
-            )
-        else:
-            cols[0].error(f"Not Ready 🔴 (HTTP {r.status_code})")
-    except Exception as e:
-        cols[0].error(f"Disconnected 🔴 ({e})")
-
-st.markdown("---")
 
 # ---- mini-presentation: Architecture ----
 left, right = st.columns([1, 1], gap="large")
@@ -174,17 +137,13 @@ st.markdown(
 # ---- quick navigation ----
 st.subheader("Navigate")
 cols = st.columns(3)
-cols[0].page_link("pages/1_Ingest.py", label="📥 Ingest", icon="📥")
-cols[1].page_link("pages/2_Research.py", label="🔎 Research", icon="🔎")
-cols[2].page_link("pages/3_PrimaryInsights.py", label="💡 Primary Insights", icon="💡")
+cols[0].page_link("pages/1_Ingest.py", label="Ingest", icon="📥")
+cols[1].page_link("pages/2_Research.py", label="Research", icon="🔎")
+cols[2].page_link("pages/3_PrimaryInsights.py", label="Primary Insights", icon="💡")
 
 cols2 = st.columns(3)
-cols2[0].page_link("pages/4_Decision.py", label="⚖️ Decision", icon="⚖️")
-cols2[1].page_link("pages/5_Validation_Provenance.py", label="🛡️ Validation & Provenance", icon="🛡️")
-cols2[2].page_link("pages/06_Settings.py", label="🩺 Health Only", icon="🩺")
+cols2[0].page_link("pages/4_Decision.py", label="Decision", icon="⚖️")
+cols2[1].page_link("pages/5_Validation_Provenance.py", label="Validation & Provenance", icon="🛡️")
+cols2[2].page_link("pages/06_Settings.py", label="Health Only", icon="🩺")
 
 st.markdown("---")
-st.caption(
-    "Tip: For production, set environment variables on the server (API keys, feature flags). "
-    "This Home page is a presentation; health checks live in **Settings → Health Only**."
-)
