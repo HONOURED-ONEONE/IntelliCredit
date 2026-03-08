@@ -144,6 +144,5 @@ cols[2].page_link("pages/3_PrimaryInsights.py", label="Primary Insights", icon="
 cols2 = st.columns(3)
 cols2[0].page_link("pages/4_Decision.py", label="Decision", icon="⚖️")
 cols2[1].page_link("pages/5_Validation_Provenance.py", label="Validation & Provenance", icon="🛡️")
-cols2[2].page_link("pages/06_Settings.py", label="Health Only", icon="🩺")
 
 st.markdown("---")
