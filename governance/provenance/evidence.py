@@ -110,6 +110,47 @@ def build_evidence_pack(job_dir: Path, cfg: dict):
             "contract": "research"
         })
         
+    sec_res_dir = job_dir / "secondary_research"
+    if sec_res_dir.exists():
+        import shutil
+        if (sec_res_dir / "fused_results.jsonl").exists():
+            shutil.copy(sec_res_dir / "fused_results.jsonl", web_dir / "fused_results.jsonl")
+            manifest.append({
+                "path": "web/fused_results.jsonl",
+                "bytes": (web_dir / "fused_results.jsonl").stat().st_size,
+                "sha256": sha256_of_file(web_dir / "fused_results.jsonl"),
+                "source_artifact": "fused_results.jsonl",
+                "contract": "ensemble"
+            })
+            
+        if (sec_res_dir / "fusion_report.json").exists():
+            shutil.copy(sec_res_dir / "fusion_report.json", web_dir / "fusion_report.json")
+            manifest.append({
+                "path": "web/fusion_report.json",
+                "bytes": (web_dir / "fusion_report.json").stat().st_size,
+                "sha256": sha256_of_file(web_dir / "fusion_report.json"),
+                "source_artifact": "fusion_report.json",
+                "contract": "ensemble"
+            })
+            
+        # Add metadata object summarizing ensemble info
+        meta = {"providers_used": cfg.get("search", {}).get("providers", []), "ensemble_enabled": cfg.get("search", {}).get("mode") == "ensemble"}
+        if (sec_res_dir / "risk_escalation.json").exists():
+            with open(sec_res_dir / "risk_escalation.json", "r") as f:
+                meta["risk_escalation"] = json.load(f)
+        
+        meta_file = web_dir / "ensemble_metadata.json"
+        with open(meta_file, "w") as f:
+            json.dump(meta, f, indent=2)
+            
+        manifest.append({
+            "path": "web/ensemble_metadata.json",
+            "bytes": meta_file.stat().st_size,
+            "sha256": sha256_of_file(meta_file),
+            "source_artifact": "ensemble_metadata.json",
+            "contract": "ensemble_meta"
+        })
+        
     # 3. Docs evidence
     facts_path = job_dir / "ingestor" / "facts.jsonl"
     if facts_path.exists():
