@@ -35,9 +35,9 @@ search:
     freshness_days: 365
   freshness_days: 365
 features:
-  enable_live_llm: false         # Phase 3
-  enable_live_search: false      # search providers
-  enable_live_databricks: false  # DBFS/UC
+  enable_live_llm: true         # Phase 3
+  enable_live_search: true      # search providers
+  enable_live_databricks: true  # DBFS/UC
 governance:
   contracts_version: "0.1.0"
   validation:
@@ -120,7 +120,7 @@ integrations:
     retries: 2
 security:
   max_request_mb: 10
-  allowed_origins: ["http://localhost:8501"]
+  allowed_origins: ["http://localhost:8501", "https://intellicredit-honouredone.streamlit.app"]
   redact_keys_in_logs: true
 
 billing:
