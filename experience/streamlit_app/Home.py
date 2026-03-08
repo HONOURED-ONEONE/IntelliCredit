@@ -1,100 +1,106 @@
-import streamlit as st
 import os
 import requests
+import streamlit as st
 from dotenv import load_dotenv
 
 load_dotenv()
 
-st.set_page_config(page_title="IntelliCredit - MVP", page_icon="🏦")
+# ----------------------------
+# Page config
+# ----------------------------
+st.set_page_config(
+    page_title="IntelliCredit - MVP",
+    page_icon="🏦",
+    layout="wide"
+)
 
-st.title("Welcome to IntelliCredit MVP")
-st.markdown("""
-### Phase 5: Live Databricks & Search Integrations
+# ----------------------------
+# Helper: get API URL
+# ----------------------------
+def _default_api_url() -> str:
+    host = os.getenv("API_HOST", "127.0.0.1")
+    port = os.getenv("API_PORT", "8000")
+    return f"http://{host}:{port}"
 
-This system now supports optional Live Providers for:
-- **Vision Extraction** (GPT-4o)
-- **Live Search** (Perplexity, Tavily, Bing)
-- **Reasoning-First Primary Insights** (Claude Sonnet 4.6)
-- **Live Databricks** (Files from DBFS/Volumes and Tables from UC)
-""")
+if "api_url" not in st.session_state:
+    st.session_state["api_url"] = _default_api_url()
 
-st.sidebar.header("Configuration")
-api_host = st.sidebar.text_input("API Host", value=os.getenv("API_HOST", "127.0.0.1"))
-api_port = st.sidebar.text_input("API Port", value=os.getenv("API_PORT", "8000"))
-
-run_profile = st.sidebar.selectbox("Run Profile", ["Local Mock", "Local Uploads", "Databricks Files", "Databricks Tables"], index=0)
-
-profile_map = {
-    "Local Mock": "mock",
-    "Local Uploads": "local_uploads",
-    "Databricks Files": "databricks_files",
-    "Databricks Tables": "databricks_tables"
-}
-provider_mode = profile_map.get(run_profile, "mock")
-
-st.sidebar.subheader("Live Features")
-enable_live_llm = st.sidebar.checkbox("Enable Live LLM", value=False)
-enable_live_search = st.sidebar.checkbox("Enable Live Search", value=False)
-enable_live_databricks = st.sidebar.checkbox("Enable Live Databricks", value=False)
-
-st.sidebar.subheader("API Keys (Session Only)")
-openai_key = st.sidebar.text_input("OpenAI API Key", value=os.getenv("OPENAI_API_KEY", ""), type="password")
-anthropic_key = st.sidebar.text_input("Anthropic API Key", value=os.getenv("ANTHROPIC_API_KEY", ""), type="password")
-pplx_key = st.sidebar.text_input("Perplexity API Key", value=os.getenv("PPLX_API_KEY", ""), type="password")
-
-if openai_key: os.environ["OPENAI_API_KEY"] = openai_key
-if anthropic_key: os.environ["ANTHROPIC_API_KEY"] = anthropic_key
-if pplx_key: os.environ["PPLX_API_KEY"] = pplx_key
-
-st.session_state["api_url"] = f"http://{api_host}:{api_port}"
-st.session_state["provider_mode"] = provider_mode
-st.session_state["enable_live_llm"] = enable_live_llm
-st.session_state["enable_live_search"] = enable_live_search
-st.session_state["enable_live_databricks"] = enable_live_databricks
-
-# Health Readiness Check
 api_url = st.session_state["api_url"]
-try:
-    health_res = requests.get(f"{api_url}/health/ready", timeout=2)
-    if health_res.status_code == 200:
-        st.sidebar.success("Backend: Ready 🟢")
-    else:
-        st.sidebar.error("Backend: Not Ready 🔴")
-except:
-    st.sidebar.error("Backend: Disconnected 🔴")
 
-if enable_live_llm or enable_live_search or enable_live_databricks:
-    st.sidebar.warning("Live features enabled. API calls will be made.")
-else:
-    st.sidebar.info("Fully offline/mock mode active.")
+# ----------------------------
+# Header
+# ----------------------------
+st.title("IntelliCredit MVP")
+st.markdown(
+    """
+Welcome to the IntelliCredit MVP.  
+Use the **Settings** page to configure API keys and live features. Then proceed to **Ingest**, **Research**, **Primary Insights**, and **Decision** to run end‑to‑end jobs.
+"""
+)
 
-if "current_job_id" in st.session_state:
-    st.markdown("---")
-    st.subheader(f"Current Job: {st.session_state['current_job_id']}")
-    
-    job_id = st.session_state["current_job_id"]
-    st.write("**Validation Status:**")
-    cols = st.columns(4)
-    stages = ["ingestor", "research", "primary", "decision"]
-    for i, stage in enumerate(stages):
-        try:
-            res = requests.get(f"{api_url}/jobs/{job_id}/validation?stage={stage}")
-            if res.status_code == 200:
-                rep = res.json()
-                summary = rep.get("summary", {})
-                crit = summary.get("critical", 0)
-                warn = summary.get("warn", 0)
-                ok = summary.get("ok", 0)
-                
-                if crit > 0:
-                    cols[i].error(f"{stage.title()}\nCRIT: {crit}")
-                elif warn > 0:
-                    cols[i].warning(f"{stage.title()}\nWARN: {warn}")
-                else:
-                    cols[i].success(f"{stage.title()}\nOK: {ok}")
-            else:
-                cols[i].info(f"{stage.title()}\nPending")
-        except:
-            cols[i].info(f"{stage.title()}\nPending")
-            
-    st.markdown("[Go to Validation & Provenance](/Validation_Provenance)")
+# ----------------------------
+# API Endpoint (editable)
+# ----------------------------
+with st.expander("Connection"):
+    st.text_input("API URL", value=api_url, key="api_url")
+    st.caption("Tip: this persists for the current session. The default comes from `API_HOST` and `API_PORT`.")
+
+# ----------------------------
+# Backend readiness
+# ----------------------------
+col1, col2 = st.columns([1, 2], gap="large")
+with col1:
+    st.subheader("Backend Status")
+
+    try:
+        r = requests.get(f"{st.session_state['api_url']}/health/ready", timeout=3)
+        if r.status_code == 200:
+            st.success("Backend: Ready 🟢")
+            ready = r.json()
+            write_ok = ready.get("write_access", False)
+            st.write(f"- Write access: **{'OK' if write_ok else 'Not available'}**")
+            llm = ready.get("llm_live", {})
+            search = ready.get("search_live", {})
+            dbx = ready.get("databricks_live", {})
+
+            st.write(f"- Live LLM: **{'OK' if llm.get('ok') or llm.get('skipped') else 'Missing keys'}**")
+            st.write(f"- Live Search: **{'OK' if search.get('ok') or search.get('skipped') else 'Missing keys'}**")
+            st.write(f"- Databricks: **{'OK' if dbx.get('ok') or dbx.get('skipped') else 'Missing creds'}**")
+        else:
+            st.error(f"Backend: Not Ready 🔴 (HTTP {r.status_code})")
+    except Exception as e:
+        st.error(f"Backend: Disconnected 🔴 ({e})")
+
+with col2:
+    st.subheader("Quick Links")
+    st.markdown(
+        """
+- **Settings** → Configure keys & live features
+- **1. Ingest Data & Start Job** → Upload CSVs/PDFs or point to Databricks
+- **2. Secondary Research** → View research findings & validation
+- **3. Primary Insights** → Add officer notes and view arguments
+- **4. Decision Engine** → CAM, decision output, and scores
+- **5. Validation & Provenance** → Cross-stage validation, metrics, evidence
+        """
+    )
+
+    st.divider()
+    st.subheader("Shortcuts")
+    cols = st.columns(3)
+    cols[0].page_link("pages/0_Settings.py", label="⚙️ Settings", icon="⚙️")
+    cols[1].page_link("pages/1_Ingest.py", label="📥 Ingest", icon="📥")
+    cols[2].page_link("pages/2_Research.py", label="🔎 Research", icon="🔎")
+
+    cols2 = st.columns(3)
+    cols2[0].page_link("pages/3_PrimaryInsights.py", label="💡 Primary Insights", icon="💡")
+    cols2[1].page_link("pages/4_Decision.py", label="⚖️ Decision", icon="⚖️")
+    cols2[2].page_link("pages/5_Validation_Provenance.py", label="🛡️ Validation & Provenance", icon="🛡️")
+
+# ----------------------------
+# Footer / tips
+# ----------------------------
+st.markdown("---")
+st.caption(
+    "Tip: Start in **Settings** to enable live providers (OpenAI/Anthropic/Search/Databricks). "
+    "All keys are session‑scoped; store them securely in your deployment environment for production."
+)
