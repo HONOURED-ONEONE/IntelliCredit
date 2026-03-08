@@ -37,6 +37,7 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
     company_aliases = params.get("company_aliases", [])
     promoter_aliases = params.get("promoter_aliases", [])
     
+    search_mode = cfg.get("search", {}).get("mode", "single")
     enable_live_search = payload.get("enable_live_search", cfg.get("features", {}).get("enable_live_search", False))
     provider_name = cfg.get("search", {}).get("provider", "mock")
     freshness_days = cfg.get("search", {}).get("freshness_days", 365)
@@ -50,17 +51,36 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
     if not queries:
         queries = [("Company adverse news", "company", "Company", [])]
 
-    if enable_live_search:
-        if provider_name == "perplexity" and os.getenv("PPLX_API_KEY"):
-            provider = PerplexityProvider(cfg)
-        elif provider_name == "serpapi" and os.getenv("SERPAPI_API_KEY"):
-            provider = SerpApiProvider(cfg)
-        elif provider_name in ["tavily", "bing"] and (os.getenv("TAVILY_API_KEY") or os.getenv("BING_SUBSCRIPTION_KEY")):
-            provider = HttpSearchProvider(cfg)
+    if search_mode == "ensemble":
+        from providers.search.ensemble_provider import EnsembleSearchProvider
+        providers_list = cfg.get("search", {}).get("providers", ["mock"])
+        provider_instances = {}
+        for p in providers_list:
+            if not enable_live_search or p == "mock":
+                provider_instances[p] = MockSearchProvider()
+            elif p == "perplexity" and os.getenv("PPLX_API_KEY"):
+                provider_instances[p] = PerplexityProvider(cfg)
+            elif p == "serpapi" and os.getenv("SERPAPI_API_KEY"):
+                provider_instances[p] = SerpApiProvider(cfg)
+            elif p in ["tavily", "bing"] and (os.getenv("TAVILY_API_KEY") or os.getenv("BING_SUBSCRIPTION_KEY")):
+                provider_instances[p] = HttpSearchProvider(cfg)
+            else:
+                provider_instances[p] = MockSearchProvider()
+        if not provider_instances:
+            provider_instances["mock"] = MockSearchProvider()
+        provider = EnsembleSearchProvider(provider_instances, cfg)
+    else:
+        if enable_live_search:
+            if provider_name == "perplexity" and os.getenv("PPLX_API_KEY"):
+                provider = PerplexityProvider(cfg)
+            elif provider_name == "serpapi" and os.getenv("SERPAPI_API_KEY"):
+                provider = SerpApiProvider(cfg)
+            elif provider_name in ["tavily", "bing"] and (os.getenv("TAVILY_API_KEY") or os.getenv("BING_SUBSCRIPTION_KEY")):
+                provider = HttpSearchProvider(cfg)
+            else:
+                provider = MockSearchProvider()
         else:
             provider = MockSearchProvider()
-    else:
-        provider = MockSearchProvider()
         
     ik_provider = IndianKanoonProvider(cfg)
     findings = []
@@ -71,6 +91,7 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
     }
 
     adverse_keywords = ["fraud", "default", "litigation", "investigation", "adverse", "penalty", "scam"]
+    risk_escalation_data = {}
 
     for q, e_type, e_name, aliases in queries:
         query_hash = hashlib.md5(q.encode()).hexdigest()
@@ -81,7 +102,62 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
             with open(cache_file, "r") as f: results = json.load(f)
         else:
             try:
-                results = provider.search(q, freshness_days=freshness_days) if not isinstance(provider, MockSearchProvider) else provider.search(q)
+                if search_mode == "ensemble":
+                    limits = cfg.get("search", {}).get("limits", {})
+                    top_k_per = limits.get("top_k_per_provider", 5)
+                    max_merged = limits.get("max_merged", 10)
+                    
+                    context = {"max_merged": max_merged}
+                    raw_res = provider.search(q, top_k=top_k_per, context=context)
+                    
+                    risk_cfg = cfg.get("search", {}).get("limits", {})
+                    risk_enabled = risk_cfg.get("risk_escalation_enabled", False)
+                    risk_thresh = cfg.get("search", {}).get("risk_escalation", {}).get("threshold", 1)
+                    adverse_kws = cfg.get("search", {}).get("risk_escalation", {}).get("adverse_keywords", ["fraud", "scam", "default", "adverse"])
+                    
+                    triggered = False
+                    final_limits = max_merged
+                    
+                    if risk_enabled:
+                        combined_text = " ".join([r.get("title", "") + " " + r.get("snippet", "") for r in raw_res]).lower()
+                        if any(kw.lower() in combined_text for kw in adverse_kws):
+                            triggered = True
+                            
+                    if triggered:
+                        final_limits = risk_cfg.get("max_merged_high_risk", 25)
+                        top_k_high = risk_cfg.get("top_k_per_provider_high_risk", 10)
+                        context = {"max_merged": final_limits}
+                        raw_res = provider.search(q, top_k=top_k_high, context=context)
+                        
+                    risk_escalation_data[query_hash] = {
+                        "triggered": triggered,
+                        "final_limits": final_limits
+                    }
+                    results = raw_res
+                    
+                    sec_res_dir = job_dir / "secondary_research"
+                    sec_res_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    with open(sec_res_dir / "fused_results.jsonl", "a") as f:
+                        for r in results:
+                            f.write(json.dumps(r) + "\n")
+                            
+                    if "fusion_report" in context:
+                        with open(sec_res_dir / "fusion_report.json", "w") as f:
+                            json.dump(context["fusion_report"], f)
+                            
+                    if "raw_results" in context:
+                        raw_dir = sec_res_dir / "raw"
+                        raw_dir.mkdir(parents=True, exist_ok=True)
+                        for pname, p_res in context["raw_results"].items():
+                            with open(raw_dir / f"provider_{pname}_{query_hash}.json", "w") as f:
+                                json.dump(p_res, f)
+                                
+                    if risk_escalation_data:
+                        with open(sec_res_dir / "risk_escalation.json", "w") as f:
+                            json.dump(risk_escalation_data, f)
+                else:
+                    results = provider.search(q, freshness_days=freshness_days) if not isinstance(provider, MockSearchProvider) else provider.search(q)
                 with open(cache_file, "w") as f: json.dump(results, f)
             except Exception as e:
                 logger.error(f"Search failed: {e}")

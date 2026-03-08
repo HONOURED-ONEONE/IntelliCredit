@@ -19,7 +19,10 @@ llm:
   model_map:
     vision: "gpt-4o"
     json_repair: "gpt-4o-mini"
-    reasoning_primary: "claude-3-7-sonnet-2025-10-22"
+    reasoning_primary: "claude-sonnet-4-6"
+  anthropic:
+    thinking:
+      type: "adaptive"
   timeouts_sec:
     short: 20
     medium: 60
@@ -31,12 +34,6 @@ llm:
   enable_cache: true
 search:
   provider: "mock"      # mock | perplexity | tavily | bing | serpapi
-  serpapi:
-    engine: "google"
-    hl: "en"
-    gl: "in"
-    num: 10
-    safe: "off"
   mode: "ensemble"
   providers: ["perplexity", "tavily", "serpapi"]
   fusion:
@@ -48,6 +45,12 @@ search:
     risk_escalation_enabled: true
     max_merged_high_risk: 25
     top_k_per_provider_high_risk: 10
+  serpapi:
+    engine: "google"
+    hl: "en"
+    gl: "in"
+    num: 10
+    safe: "off"
   perplexity:
     freshness_days: 365
   freshness_days: 365
@@ -150,7 +153,7 @@ billing:
       prompt_per_1k: 0.0
       completion_per_1k: 0.0
   anthropic:
-    claude-3-7-sonnet-2025-10-22:
+    claude-sonnet-4-6:
       prompt_per_1k: 0.0
       completion_per_1k: 0.0
   search:

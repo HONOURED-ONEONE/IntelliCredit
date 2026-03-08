@@ -251,7 +251,9 @@ async def get_job_validation(job_id: str, stage: str = Query(..., regex="^(inges
 
 @app.get("/jobs/{job_id}/validation/aggregate")
 def get_validation_aggregate(job_id: str):
-    agg_file = OUTPUT_ROOT / job_id / "validation_aggregate.json"
+    config = load_config()
+    output_root = config.get("paths", {}).get("output_root", "outputs/jobs")
+    agg_file = project_root / output_root / job_id / "validation_aggregate.json"
     if not agg_file.exists():
         raise HTTPException(status_code=404, detail="Aggregate validation not found")
     try:

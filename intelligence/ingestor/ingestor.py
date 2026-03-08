@@ -172,7 +172,7 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
                             schema=schema,
                             model=vision_model
                         )
-                        append_metrics(job_dir, f"ingestor_vision_{doc.get('id', 'doc')}", metrics)
+                        append_metrics(job_dir, f"ingestor_vision_{pdf_file.stem}", metrics)
                         for fact in ext_list:
                             if isinstance(fact, dict) and "facts" in fact:
                                 for f in fact["facts"]:
