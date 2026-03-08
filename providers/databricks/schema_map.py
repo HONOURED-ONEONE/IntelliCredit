@@ -54,7 +54,7 @@ def to_canonical_bank(df: pd.DataFrame) -> pd.DataFrame:
             if 'date' not in col_map: col_map['date'] = c
         elif 'desc' in c or 'narration' in c or 'particulars' in c:
             if 'description' not in col_map: col_map['description'] = c
-        elif 'amount' in c or 'value' in c or 'balance' not in c:
+        elif 'amount' in c or 'value' in c or 'balance' in c:
             if 'amount' not in col_map: col_map['amount'] = c
             
     # Handle separate credit/debit columns

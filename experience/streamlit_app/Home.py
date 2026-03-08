@@ -14,7 +14,7 @@ st.markdown("""
 This system now supports optional Live Providers for:
 - **Vision Extraction** (GPT-4o)
 - **Live Search** (Perplexity, Tavily, Bing)
-- **Reasoning-First Primary Insights** (Claude 3.7 Sonnet)
+- **Reasoning-First Primary Insights** (Claude Sonnet 4.6)
 - **Live Databricks** (Files from DBFS/Volumes and Tables from UC)
 """)
 

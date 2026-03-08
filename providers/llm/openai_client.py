@@ -39,28 +39,43 @@ class OpenAIClient(LLMProvider):
         messages = [{"role": "system", "content": "You are a data extraction assistant. Output JSON strictly matching the requested schema."}]
         content_items = [{"type": "text", "text": instructions}]
         
+        detail_hint = kwargs.get("detail", "low")
         for img_bytes in pages:
             b64 = base64.b64encode(img_bytes).decode('utf-8')
             content_items.append({
                 "type": "image_url",
-                "image_url": {"url": f"data:image/jpeg;base64,{b64}"}
+                "image_url": {"url": f"data:image/jpeg;base64,{b64}", "detail": detail_hint}
             })
             
         messages.append({"role": "user", "content": content_items})
         
         # Add schema hint to instructions
-        messages[0]["content"] += f"
-Schema: {json.dumps(schema)}"
+        messages[0]["content"] += f"\nSchema: {json.dumps(schema)}"
 
         try:
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                response_format={"type": "json_object"},
-                max_tokens=kwargs.get("max_tokens", 2000),
-                timeout=kwargs.get("timeout", 60)
-            )
-            content = response.choices[0].message.content
+            try:
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    response_format={"type": "json_object"},
+                    max_tokens=kwargs.get("max_tokens", 2000),
+                    timeout=kwargs.get("timeout", 60)
+                )
+                content = response.choices[0].message.content
+                res_json = json.loads(content)
+            except Exception as e:
+                logger.warning(f"OpenAI returned invalid JSON or error: {e}, retrying with stronger instruction...")
+                messages[0]["content"] += "\nReturn ONLY valid JSON object, no markdown."
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    response_format={"type": "json_object"},
+                    max_tokens=kwargs.get("max_tokens", 2000),
+                    timeout=kwargs.get("timeout", 60)
+                )
+                content = response.choices[0].message.content
+                res_json = json.loads(content)
+
             usage = response.usage
             metrics = {
                 "provider": "openai",
@@ -68,9 +83,6 @@ Schema: {json.dumps(schema)}"
                 "completion_tokens": usage.completion_tokens if usage else 0,
                 "model": model
             }
-            res_json = json.loads(content)
-            # Depending on schema, it might be wrapped in a root key. 
-            # We assume the schema requests a list or an object containing a list.
             if isinstance(res_json, dict) and len(res_json.keys()) == 1:
                 key = list(res_json.keys())[0]
                 if isinstance(res_json[key], list):
