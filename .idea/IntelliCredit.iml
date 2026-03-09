@@ -1,7 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module type="PYTHON_MODULE" version="4">
   <component name="NewModuleRootManager">
-    <content url="file://$MODULE_DIR$" />
+    <content url="file://$MODULE_DIR$">
+      <excludeFolder url="file://$MODULE_DIR$/outputs/jobs/788e20ba-e744-4f39-a6bc-d188bdb95878/evidence_pack/primary" />
+      <excludeFolder url="file://$MODULE_DIR$/outputs/jobs/788e20ba-e744-4f39-a6bc-d188bdb95878/evidence_pack/web" />
+      <excludeFolder url="file://$MODULE_DIR$/outputs/jobs/7e194a29-9d88-4da0-bfdc-b611fcb55f29" />
+      <excludeFolder url="file://$MODULE_DIR$/outputs/jobs/841fe6f3-1ad8-4be2-b519-c10bc70f9236/evidence_pack/primary" />
+      <excludeFolder url="file://$MODULE_DIR$/outputs/jobs/841fe6f3-1ad8-4be2-b519-c10bc70f9236/evidence_pack/web" />
+      <excludeFolder url="file://$MODULE_DIR$/outputs/jobs/9b09b969-eb66-4e5a-b5fe-30d7101aa99d" />
+      <excludeFolder url="file://$MODULE_DIR$/outputs/jobs/a770c979-0400-4e42-b34e-bbae4d9cbeb1" />
+      <excludeFolder url="file://$MODULE_DIR$/outputs/jobs/f35174a7-629c-48c8-bad1-97d372688311" />
+    </content>
     <orderEntry type="jdk" jdkName="Python 3.9" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
