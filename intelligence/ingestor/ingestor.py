@@ -24,6 +24,15 @@ def run(job_dir: Path, cfg: dict, payload: dict) -> None:
     bank_df = pd.DataFrame()
     pdf_paths = []
 
+    if source_mode in ["databricks_files", "databricks_tables"]:
+        from providers.databricks.mock_connector import MockDatabricksConnector
+        if isinstance(dbx, MockDatabricksConnector) and enable_live_databricks:
+            logger.error("Live Databricks required but connector is Mock. Missing credentials?")
+            with open(out_dir / "stage_note.txt", "a") as f: 
+                f.write("databricks_live_error=true\nreason=Missing credentials\n")
+            # Fail early instead of proceeding with mock if live was explicitly requested for a databricks mode
+            raise RuntimeError("Live Databricks requested but missing required environment variables (DATABRICKS_HOST, DATABRICKS_TOKEN, DATABRICKS_HTTP_PATH).")
+
     if source_mode == "mock":
         gst_path = project_root / cfg.get("mock_paths", {}).get("gst_uc_csv", "mock_dbx/uc/gst_returns_sample.csv")
         bank_path = project_root / cfg.get("mock_paths", {}).get("bank_uc_csv", "mock_dbx/uc/bank_transactions_sample.csv")

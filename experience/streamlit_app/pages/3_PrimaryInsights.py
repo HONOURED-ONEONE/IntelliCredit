@@ -3,15 +3,22 @@ import streamlit as st
 import json
 import pandas as pd
 import requests
-from pathlib import Path
-import yaml
+import sys
 import time
+from pathlib import Path
+
+# Add the parent directory to sys.path to allow importing core_utils
+project_root = Path(__file__).resolve().parent.parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
+
+from experience.streamlit_app.core_utils import get_api_url, get_provider_mode, fetch_artifact
 
 st.set_page_config(page_title="Primary Insights", page_icon="💡")
 st.title("3. Primary Insights")
 
-api_url = st.session_state.get("api_url", "http://127.0.0.1:8000")
-provider_mode = st.session_state.get("provider_mode", "mock")
+api_url = get_api_url()
+provider_mode = get_provider_mode()
 
 st.subheader("Officer Notes")
 notes = st.text_area(
@@ -63,28 +70,16 @@ with st.expander("Monitor current job"):
             pass
         time.sleep(1)
 
-project_root = Path(__file__).resolve().parent.parent.parent.parent
-config_path = project_root / "config" / "base.yaml"
-output_root = "outputs/jobs"
-if config_path.exists():
-    with open(config_path, "r") as cf:
-        conf = yaml.safe_load(cf)
-        output_root = conf.get("paths", {}).get("output_root", "outputs/jobs")
-
-job_dir = project_root / output_root / job_id
-primary_dir = job_dir / "primary"
-if not primary_dir.exists():
-    st.info("Primary insights artifacts not found yet.")
-    st.stop()
-
-args_path = primary_dir / "risk_arguments.jsonl"
-if args_path.exists():
+args_content = fetch_artifact(api_url, job_id, "primary/risk_arguments.jsonl")
+if args_content:
     st.subheader("Risk Arguments (LLM Extracted)")
     args = []
-    with open(args_path, "r") as f:
-        for line in f:
-            if line.strip():
+    for line in args_content.splitlines():
+        if line.strip():
+            try:
                 args.append(json.loads(line))
+            except Exception:
+                pass
     if args:
         df = pd.DataFrame(args)
         disp_cols = ['quote', 'five_c', 'proposed_delta', 'note_missing_quote']
@@ -93,29 +88,30 @@ if args_path.exists():
         st.dataframe(df[[c for c in disp_cols if c in df.columns]])
     else:
         st.write("No arguments extracted.")
+else:
+    st.info("Primary insights artifacts not found yet.")
 
-impact_path = primary_dir / "impact_report.json"
-if impact_path.exists():
-    with open(impact_path, "r") as f:
-        impact = json.load(f)
+impact_data = fetch_artifact(api_url, job_id, "primary/impact_report.json")
+if impact_data:
     st.subheader("Impact Report")
-    st.json(impact)
+    st.json(impact_data)
 
-contradictions_path = primary_dir / "contradictions.json"
-quote_links_path = primary_dir / "quote_links.jsonl"
-if contradictions_path.exists() or quote_links_path.exists():
+contradictions_data = fetch_artifact(api_url, job_id, "primary/contradictions.json")
+quote_links_content = fetch_artifact(api_url, job_id, "primary/quote_links.jsonl")
+
+if contradictions_data or quote_links_content:
     with st.expander("Guardrails & Heuristics (Sidecars)"):
-        if contradictions_path.exists():
-            with open(contradictions_path, "r") as f:
-                contra = json.load(f)
-            st.write(f"**Contradictions Detected:** {len(contra.get('pairs', []))}")
-            st.json(contra)
-        if quote_links_path.exists():
+        if contradictions_data:
+            st.write(f"**Contradictions Detected:** {len(contradictions_data.get('pairs', []))}")
+            st.json(contradictions_data)
+        if quote_links_content:
             links = []
-            with open(quote_links_path, "r") as f:
-                for line in f:
-                    if line.strip():
+            for line in quote_links_content.splitlines():
+                if line.strip():
+                    try:
                         links.append(json.loads(line))
+                    except Exception:
+                        pass
             st.write(f"**Quote Links:** {len(links)}")
             if links:
                 st.dataframe(pd.DataFrame(links))

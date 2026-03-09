@@ -3,20 +3,24 @@ import os
 import json
 import requests
 import streamlit as st
+import sys
+from pathlib import Path
+
+# Add the parent directory to sys.path to allow importing core_utils
+project_root = Path(__file__).resolve().parent.parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
+
+from experience.streamlit_app.core_utils import get_api_url
 
 st.set_page_config(page_title="Settings • Health", page_icon="🩺", layout="wide")
 st.title("Settings — Health Only")
 
-# Resolve API URL from session (set in Home.py) or env
-def _default_api_url() -> str:
-    host = os.getenv("API_HOST", "127.0.0.1")
-    port = os.getenv("API_PORT", "8000")
-    return f"http://{host}:{port}"
-
-api_url = st.session_state.get("api_url", _default_api_url())
+# Resolve API URL using core_utils
+api_url = get_api_url()
 
 with st.expander("Connection", expanded=True):
-    st.text_input("API URL", value=api_url, key="api_url", help="Read-only usage in this page; change on Home if needed.")
+    st.text_input("API URL", value=api_url, disabled=True, help="Resolved API URL. Edit via environment variables if needed.")
 
 st.markdown("---")
 
@@ -25,7 +29,7 @@ col1, col2 = st.columns([1, 2], gap="large")
 with col1:
     st.subheader("Backend Readiness")
     try:
-        r = requests.get(f"{st.session_state['api_url']}/health/ready", timeout=4)
+        r = requests.get(f"{api_url}/health/ready", timeout=4)
         if r.status_code == 200:
             ready = r.json()
             st.success("Backend: Ready 🟢")
@@ -44,7 +48,7 @@ with col1:
 with col2:
     st.subheader("Raw Readiness JSON")
     try:
-        r = requests.get(f"{st.session_state['api_url']}/health/ready", timeout=4)
+        r = requests.get(f"{api_url}/health/ready", timeout=4)
         if r.status_code == 200:
             st.code(json.dumps(r.json(), indent=2), language="json")
         else:

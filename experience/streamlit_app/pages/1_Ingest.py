@@ -4,15 +4,23 @@ import requests
 import time
 import json
 import pandas as pd
-import altair as alt
+import io
+
+import sys
 from pathlib import Path
-import yaml
+
+# Add the parent directory to sys.path to allow importing core_utils
+project_root = Path(__file__).resolve().parent.parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
+
+from experience.streamlit_app.core_utils import get_api_url, get_provider_mode, fetch_artifact
 
 st.set_page_config(page_title="Ingest Data & Start Job", page_icon="📥")
 st.title("1. Ingest Data & Start Job")
 
-api_url = st.session_state.get("api_url", "http://127.0.0.1:8000")
-provider_mode = st.session_state.get("provider_mode", "mock")
+api_url = get_api_url()
+provider_mode = get_provider_mode()
 
 with st.form("job_form"):
     company_name = st.text_input("Company Name", "")
@@ -108,31 +116,28 @@ if "current_job_id" in st.session_state:
         time.sleep(1)
 
     st.markdown("### Ingestor Preview")
-    project_root = Path(__file__).resolve().parent.parent.parent.parent
-    config_path = project_root / "config" / "base.yaml"
-    output_root = "outputs/jobs"
-    if config_path.exists():
-        with open(config_path, "r") as cf:
-            conf = yaml.safe_load(cf)
-            output_root = conf.get("paths", {}).get("output_root", "outputs/jobs")
-
-    job_dir = project_root / output_root / job_id
-    ingestor_dir = job_dir / "ingestor"
-    if ingestor_dir.exists():
-        gst_path = ingestor_dir / "gst_returns.csv"
-        bank_path = ingestor_dir / "bank_transactions.csv"
-        if gst_path.exists():
-            df_gst = pd.read_csv(gst_path)
+    
+    # Try fetching the GST preview
+    gst_content = fetch_artifact(api_url, job_id, "ingestor/gst_returns.csv")
+    if gst_content:
+        try:
+            df_gst = pd.read_csv(io.StringIO(gst_content))
             st.write("GST Returns (Top 10)")
             st.dataframe(df_gst.head(10))
-        facts_path = ingestor_dir / "facts.jsonl"
-        if facts_path.exists():
-            facts = []
-            with open(facts_path, "r") as f:
-                for line in f:
-                    if line.strip():
-                        facts.append(json.loads(line))
-            if facts:
-                df_facts = pd.DataFrame(facts)
-                st.write("Extracted Facts (Includes Vision LLM if enabled)")
-                st.dataframe(df_facts)
+        except Exception:
+            pass
+            
+    # Try fetching the facts
+    facts_content = fetch_artifact(api_url, job_id, "ingestor/facts.jsonl")
+    if facts_content:
+        facts = []
+        for line in facts_content.splitlines():
+            if line.strip():
+                try:
+                    facts.append(json.loads(line))
+                except Exception:
+                    pass
+        if facts:
+            df_facts = pd.DataFrame(facts)
+            st.write("Extracted Facts (Includes Vision LLM if enabled)")
+            st.dataframe(df_facts)

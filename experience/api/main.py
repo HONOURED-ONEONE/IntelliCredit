@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Request, File, UploadFile
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
@@ -111,12 +112,13 @@ async def health_ready():
         },
         "databricks_live": {
             "skipped": not config.get("features", {}).get("enable_live_databricks", False),
-            "ok": bool(os.getenv("DATABRICKS_HOST") and os.getenv("DATABRICKS_TOKEN")),
+            "ok": bool(os.getenv("DATABRICKS_HOST") and os.getenv("DATABRICKS_TOKEN") and os.getenv("DATABRICKS_HTTP_PATH")),
             "reason": (
-                "Missing DATABRICKS_HOST or DATABRICKS_TOKEN"
-                if not bool(os.getenv("DATABRICKS_HOST") and os.getenv("DATABRICKS_TOKEN"))
+                "Missing DATABRICKS_HOST, DATABRICKS_TOKEN, or DATABRICKS_HTTP_PATH"
+                if not bool(os.getenv("DATABRICKS_HOST") and os.getenv("DATABRICKS_TOKEN") and os.getenv("DATABRICKS_HTTP_PATH"))
                 else "OK"
             ),
+            "mode": config.get("integrations", {}).get("databricks", {}).get("mode", "mock")
         },
     }
 
@@ -365,3 +367,34 @@ async def get_job_results(job_id: str, subdir: str = Query(None), tree: bool = Q
             files.append(FileInfo(name=str(rel_path), size_bytes=file_path.stat().st_size))
 
     return JobResultsResponse(job_id=job_id, files=files)
+
+
+@app.get("/jobs/{job_id}/artifact")
+async def get_job_artifact(job_id: str, path: str = Query(...)):
+    config = load_config()
+    output_root = config.get("paths", {}).get("output_root", "outputs/jobs")
+    job_dir = project_root / output_root / job_id
+
+    if not job_dir.exists():
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    artifact_path = (job_dir / path).resolve()
+    
+    # Security check: ensure the requested path is within the job directory
+    if not str(artifact_path).startswith(str(job_dir.resolve())):
+        raise HTTPException(status_code=403, detail="Forbidden path")
+
+    if not artifact_path.exists() or not artifact_path.is_file():
+        raise HTTPException(status_code=404, detail="Artifact not found")
+
+    ext = artifact_path.suffix.lower()
+    
+    if ext in [".json"]:
+        with open(artifact_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    elif ext in [".jsonl", ".txt", ".md", ".csv"]:
+        with open(artifact_path, "r", encoding="utf-8") as f:
+            return PlainTextResponse(f.read())
+            
+    # Fallback to file response for binaries like pdf, docx, etc.
+    return FileResponse(artifact_path)

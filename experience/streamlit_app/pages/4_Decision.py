@@ -1,8 +1,15 @@
 import streamlit as st
 import json
 import requests
+import sys
 from pathlib import Path
-import yaml
+
+# Add the parent directory to sys.path to allow importing core_utils
+project_root = Path(__file__).resolve().parent.parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
+
+from experience.streamlit_app.core_utils import get_api_url, fetch_artifact
 
 st.set_page_config(page_title="Decision Engine", page_icon="⚖️")
 st.title("4. Decision Engine")
@@ -12,53 +19,28 @@ if "current_job_id" not in st.session_state:
     st.stop()
 
 job_id = st.session_state["current_job_id"]
-project_root = Path(__file__).resolve().parent.parent.parent.parent
-config_path = project_root / "config" / "base.yaml"
-output_root = "outputs/jobs"
-if config_path.exists():
-    with open(config_path, "r") as cf:
-        conf = yaml.safe_load(cf)
-        output_root = conf.get("paths", {}).get("output_root", "outputs/jobs")
-job_dir = project_root / output_root / job_id
+api_url = get_api_url()
 
-decision_dir = job_dir / "decision_engine"
-if not decision_dir.exists():
-    st.info("Decision engine outputs not found yet.")
-    st.stop()
-
-cam_path = decision_dir / "cam.md"
-if cam_path.exists():
-    with open(cam_path, "r") as f:
-        cam_md = f.read()
+cam_md = fetch_artifact(api_url, job_id, "decision_engine/cam.md")
+if cam_md:
     st.markdown(cam_md)
     st.download_button("Download CAM", cam_md, file_name="cam.md")
     
-    docx_path = decision_dir / "cam.docx"
-    if docx_path.exists():
-        with open(docx_path, "rb") as f:
-            st.download_button("Download CAM (DOCX)", f, file_name="cam.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-            
-    pdf_path = decision_dir / "cam.pdf"
-    if pdf_path.exists():
-        with open(pdf_path, "rb") as f:
-            st.download_button("Download CAM (PDF)", f, file_name="cam.pdf", mime="application/pdf")
+    st.info("To download CAM (DOCX/PDF), please use the API directly or check project directory if running locally.")
+else:
+    st.info("Decision engine outputs not found yet.")
+    st.stop()
 
 col1, col2 = st.columns(2)
-out_path = decision_dir / "decision_output.json"
-if out_path.exists():
-    with open(out_path, "r") as f:
-        out_json = json.load(f)
+out_json = fetch_artifact(api_url, job_id, "decision_engine/decision_output.json")
+if out_json:
     col1.subheader("Decision Output")
     col1.json(out_json)
 
-breakdown_path = decision_dir / "score_breakdown.json"
-if breakdown_path.exists():
-    with open(breakdown_path, "r") as f:
-        breakdown = json.load(f)
+breakdown = fetch_artifact(api_url, job_id, "decision_engine/score_breakdown.json")
+if breakdown:
     col2.subheader("Score Breakdown")
     col2.json(breakdown)
-
-api_url = st.session_state.get("api_url", "http://127.0.0.1:8000")
 
 val_res = requests.get(f"{api_url}/jobs/{job_id}/validation?stage=decision")
 if val_res.status_code == 200:
@@ -66,7 +48,7 @@ if val_res.status_code == 200:
     rep = val_res.json()
     st.json(rep.get("summary", {}))
 
-    if out_path.exists() and "out_json" in locals():
+    if out_json:
         if out_json.get("decision") == "REFER":
             st.error("Decision outcome is REFER. Please review reasons below:")
             st.write(out_json.get("drivers", []))

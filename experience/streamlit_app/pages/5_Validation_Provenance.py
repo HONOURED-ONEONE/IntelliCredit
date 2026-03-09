@@ -3,6 +3,14 @@ import json
 import requests
 from pathlib import Path
 import pandas as pd
+import sys
+
+# Add the parent directory to sys.path to allow importing core_utils
+project_root = Path(__file__).resolve().parent.parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
+
+from experience.streamlit_app.core_utils import get_api_url
 
 st.set_page_config(page_title="Validation & Provenance", page_icon="🛡️")
 st.title("5. Validation & Provenance")
@@ -12,7 +20,7 @@ if "current_job_id" not in st.session_state:
     st.stop()
 
 job_id = st.session_state["current_job_id"]
-api_url = st.session_state.get("api_url", "http://127.0.0.1:8000")
+api_url = get_api_url()
 
 tab1, tab2, tab3, tab4 = st.tabs(["Validation", "Provenance", "Metrics", "Evidence"])
 

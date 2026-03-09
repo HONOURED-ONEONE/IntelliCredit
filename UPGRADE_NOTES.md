@@ -15,13 +15,13 @@ This release introduces hardening for analytical heuristics, a cleaner API-based
   - `spike.z_threshold`: Sensitivity for outliers.
   - `reversal.window_k`: Look-ahead window for offsets.
 
-### 2. API-Based Uploads
-- **Objective**: Decouple Streamlit from direct filesystem access and centralize input management.
+### 2. API-Based Uploads and Artifact Serving
+- **Objective**: Decouple Streamlit from direct filesystem access and centralize input/output management. Readying the application for Streamlit Community Cloud and Railway deployments.
 - **Endpoints**:
   - `POST /jobs/{job_id}/uploads`: Accepts `gst_returns`, `bank_transactions`, and multiple `pdfs`.
   - `GET /jobs/{job_id}/inputs`: Lists uploaded files with checksums.
-- **Streamlit**: Now uses these endpoints for "Local Uploads" mode. Direct writes to `outputs/jobs/` from the UI are removed.
-
+  - `GET /jobs/{job_id}/artifact`: Safely serves text and binary artifacts from the job directory.
+- **Streamlit**: Now entirely API-driven. Direct writes to and reads from `outputs/jobs/` in the UI are removed.
 ### 3. Deepened Disambiguation & Policy Matrix
 - **Objective**: Improve entity matching in research and add deterministic overrides for decisions.
 - **Research**:

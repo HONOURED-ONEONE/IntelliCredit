@@ -2,6 +2,11 @@
 
 IntelliCredit is composed of a FastAPI backend and a Streamlit frontend. It relies on a stateful, event-driven orchestration pipeline that builds deterministic decisions alongside reasoning-based LLM inferences.
 
+## Deployment Stack
+- **Frontend**: Streamlit Community Cloud (Stateless, purely API-driven).
+- **Backend API**: Railway via FastAPI (Stateful, handles orchestration and serves files).
+- **Local Dev**: Docker Compose is available for local testing.
+
 ## High-Level Flow
 1. **Ingestor**: Reads CSV/PDFs from Mock, Uploads, or Databricks. Optionally uses Vision LLM (GPT-4o) for OCR. Emits `facts.jsonl` and `signals.json`.
 2. **Research**: Performs web queries using Perplexity, Tavily, SerpAPI, or Mock JSONL datasets. Identifies adverse media. Emits `research_findings.jsonl`.

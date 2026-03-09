@@ -2,13 +2,18 @@
 
 Welcome to the IntelliCredit MVP. This system automates deterministic and LLM-assisted credit assessments via a structured orchestration pipeline.
 
+## Deployment Stack
+- **UI (Frontend):** Hosted on Streamlit Community Cloud. The UI is completely API-driven and does not rely on local filesystem access for fetching artifacts.
+- **Backend (API):** Hosted on Railway via FastAPI. Exposes the endpoints to run jobs, fetch statuses, and securely serve validation/evidence artifacts.
+- **Docker Compose:** Remains primarily for local-dev.
+
 ## Run Profiles
 
-1. **Local Mock (offline)**: Runs completely offline using mock CSVs and data. No API keys required.
-2. **Local Uploads**: Upload PDFs and CSVs manually via the Streamlit UI.
-3. **Databricks Files / Tables**: Integrates directly with Databricks Volumes/DBFS and Unity Catalog. Requires `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, and `DATABRICKS_HTTP_PATH`.
-   - *Databricks Files Mode (Live)*: Hydrates PDFs directly from DBFS into the local inputs directory before extraction.
-   - *UC Schema Mapping*: Arbitrary Databricks Unity Catalog tables are gracefully mapped to the canonical `gst_returns` and `bank_transactions` schemas, automatically ignoring extraneous columns or generating synthesized zero values for missing elements.
+1. **Local Uploads (Default for Production)**: Upload PDFs and CSVs manually via the Streamlit UI.
+2. **Local Mock (offline)**: Runs completely offline using mock CSVs and data for local testing. No API keys required.
+3. **Databricks Files / Tables**: Integrates directly with Databricks Volumes/DBFS and Unity Catalog. **Requires** `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, and `DATABRICKS_HTTP_PATH`. Disabled by default and will fail if enabled without credentials.
+   - *Databricks Files Mode (Live)*: Hydrates PDFs directly from DBFS.
+   - *UC Schema Mapping*: Arbitrary Databricks Unity Catalog tables are gracefully mapped to canonical schemas.
 
 ## Search & Citations
 
