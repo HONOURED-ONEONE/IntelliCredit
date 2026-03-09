@@ -1,13 +1,10 @@
 api:
   host: "0.0.0.0"
   port: 8000
-streamlit:
-  port: 8501
 paths:
   output_root: "outputs/jobs"
 providers:
-  mode: "mock"
-  search_provider: "mock"
+  mode: "local_uploads"
 mock_paths:
   pdf_dir: "mock_dbx/dbfs"
   gst_uc_csv: "mock_dbx/uc/gst_returns_sample.csv"
@@ -32,8 +29,7 @@ llm:
     reasoning: 3000
     repair: 1500
   enable_cache: true
-search:
-  provider: "mock"      # mock | perplexity | tavily | bing | serpapi
+search:      # mock | perplexity | tavily | bing | serpapi
   mode: "ensemble"
   providers: ["perplexity", "tavily", "serpapi"]
   fusion:
@@ -55,9 +51,9 @@ search:
     freshness_days: 365
   freshness_days: 365
 features:
-  enable_live_llm: false         # Phase 3
-  enable_live_search: false      # search providers
-  enable_live_databricks: false  # DBFS/UC
+  enable_live_llm: true         # Phase 3
+  enable_live_search: true      # search providers
+  enable_live_databricks: false # DBFS/UC
 governance:
   contracts_version: "0.1.0"
   validation:
@@ -140,7 +136,7 @@ integrations:
     retries: 2
 security:
   max_request_mb: 10
-  allowed_origins: ["http://localhost:8501"]
+  allowed_origins: ["http://localhost:8501", "https://intellicredit-honouredone.streamlit.app"]
   redact_keys_in_logs: true
 
 billing:
