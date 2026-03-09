@@ -1,3 +1,0 @@
-{"field": "total_gst_sales", "page": 1, "file": "gst_returns.csv", "snippet": "Computed from GST DB/CSV"}
-{"field": "total_bank_inflow", "page": 1, "file": "bank_transactions.csv", "snippet": "Computed from Bank DB/CSV"}
-{"field": "total_bank_outflow", "page": 1, "file": "bank_transactions.csv", "snippet": "Computed from Bank DB/CSV"}

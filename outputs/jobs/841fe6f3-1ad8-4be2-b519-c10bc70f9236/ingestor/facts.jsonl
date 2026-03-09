@@ -1,3 +1,0 @@
-{"field": "total_gst_sales", "value": 750000.0, "page": 1, "file": "gst_returns.csv", "evidence_snippet": "Computed from GST DB/CSV", "schema_version": "0.1.0", "source": "ingestor_agent"}
-{"field": "total_bank_inflow", "value": 380000.0, "page": 1, "file": "bank_transactions.csv", "evidence_snippet": "Computed from Bank DB/CSV", "schema_version": "0.1.0", "source": "ingestor_agent"}
-{"field": "total_bank_outflow", "value": -30000.0, "page": 1, "file": "bank_transactions.csv", "evidence_snippet": "Computed from Bank DB/CSV", "schema_version": "0.1.0", "source": "ingestor_agent"}
