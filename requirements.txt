@@ -28,3 +28,4 @@ prometheus_client>=0.17.1
 python-multipart>=0.0.9
 pytesseract>=0.3.10
 opencv-python>=4.9.0
+redis>=5.0.0

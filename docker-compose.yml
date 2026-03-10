@@ -1,7 +1,13 @@
 version: '3.8'
 
 services:
-  api:
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  api_gateway:
     build: 
       context: .
       dockerfile: Dockerfile.api
@@ -12,11 +18,79 @@ services:
       - ./mock_dbx:/app/mock_dbx
     env_file:
       - .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
       interval: 10s
       timeout: 5s
       retries: 3
+    restart: unless-stopped
+
+  worker_ingestor:
+    build: 
+      context: .
+      dockerfile: Dockerfile.api
+    command: python -m workers.ingestor_worker
+    volumes:
+      - ./outputs:/app/outputs
+      - ./mock_dbx:/app/mock_dbx
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  worker_research:
+    build: 
+      context: .
+      dockerfile: Dockerfile.api
+    command: python -m workers.research_worker
+    volumes:
+      - ./outputs:/app/outputs
+      - ./mock_dbx:/app/mock_dbx
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  worker_primary:
+    build: 
+      context: .
+      dockerfile: Dockerfile.api
+    command: python -m workers.primary_worker
+    volumes:
+      - ./outputs:/app/outputs
+      - ./mock_dbx:/app/mock_dbx
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  worker_decision:
+    build: 
+      context: .
+      dockerfile: Dockerfile.api
+    command: python -m workers.decision_worker
+    volumes:
+      - ./outputs:/app/outputs
+      - ./mock_dbx:/app/mock_dbx
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
     restart: unless-stopped
 
   app:
@@ -29,11 +103,11 @@ services:
       - ./outputs:/app/outputs
       - ./mock_dbx:/app/mock_dbx
     environment:
-      - API_HOST=api
+      - API_HOST=api_gateway
       - API_PORT=8000
     env_file:
       - .env
     depends_on:
-      api:
+      api_gateway:
         condition: service_healthy
     restart: unless-stopped
